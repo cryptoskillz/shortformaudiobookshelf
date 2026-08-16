@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# macOS
+.DS_Store
+
+# Runtime state — index, cover cache, accounts, resume positions.
+# Lives in the state directory by default; ignored here in case anyone points
+# --state-dir at the project folder or mounts ./config in Docker.
+config/
+*.tmp
+secret
+
+# Organised output, if the output folder is set inside the project
+books/

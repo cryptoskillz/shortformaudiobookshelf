@@ -323,6 +323,90 @@ class MetadataStore:
             pass
 
 
+class ApiKeyStore:
+    """Tokens for machines, scoped to one action each.
+
+    A webhook cannot fill in a sign-in form, and handing an import tool an
+    admin password would give it the ability to delete the library. A key here
+    can trigger a rescan and nothing else, and only its hash is stored, so the
+    file is useless to anyone who reads it.
+    """
+
+    SCOPES = ("rescan",)
+
+    def __init__(self, path):
+        self.path = path
+        self._lock = threading.Lock()
+        self._data = {}
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                loaded = json.load(fh)
+            if isinstance(loaded, dict):
+                self._data = loaded
+        except (OSError, ValueError):
+            pass
+
+    @staticmethod
+    def _hash(key):
+        return hashlib.sha256(key.encode()).hexdigest()
+
+    def create(self, name, scope="rescan"):
+        if scope not in self.SCOPES:
+            raise ValueError(f"scope must be one of {', '.join(self.SCOPES)}")
+        key = "sab_" + secrets.token_urlsafe(32)
+        with self._lock:
+            self._data[self._hash(key)] = {
+                "name": (name or "unnamed").strip()[:60] or "unnamed",
+                "scope": scope,
+                "createdAt": time.time(),
+                "lastUsed": 0,
+            }
+            snapshot = dict(self._data)
+        self._write(snapshot)
+        return key            # the only time the caller ever sees it
+
+    def resolve(self, key):
+        """The entry for a presented key, or None. Records the use."""
+        if not key:
+            return None
+        digest = self._hash(key)
+        with self._lock:
+            entry = self._data.get(digest)
+            if not entry:
+                return None
+            entry["lastUsed"] = time.time()
+            snapshot = dict(self._data)
+            found = dict(entry, id=digest[:12])
+        self._write(snapshot)
+        return found
+
+    def list(self):
+        with self._lock:
+            return [dict(v, id=k[:12]) for k, v in self._data.items()]
+
+    def revoke(self, key_id):
+        with self._lock:
+            for digest in list(self._data):
+                if digest.startswith(key_id):
+                    del self._data[digest]
+                    snapshot = dict(self._data)
+                    break
+            else:
+                raise ValueError("no such key")
+        self._write(snapshot)
+
+    def _write(self, snapshot):
+        try:
+            os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
+            temp = f"{self.path}.{os.getpid()}.tmp"
+            with open(temp, "w", encoding="utf-8") as fh:
+                json.dump(snapshot, fh, indent=1, ensure_ascii=False)
+            os.replace(temp, self.path)
+            os.chmod(self.path, 0o600)
+        except OSError:
+            pass
+
+
 class AuthorStore:
     """Author biographies, keyed by author name rather than by book.
 

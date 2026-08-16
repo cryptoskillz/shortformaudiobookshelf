@@ -1,4 +1,5 @@
-[ ] have a way to export it so something like audiobookshelf could pull it in and have a 3rd option (ebook/audiobook/short-audiobook)
+[ ] scoped API key for the rescan webhook (ApiKeyStore class is written in server.py but NOT wired up — needs routes, the scope check on /api/rescan, and a Settings panel to create/revoke). Lets Bindery trigger a rescan after import without handing it an admin password.
+[ ] have a way to export it so something like Bindery could pull it in and have a 3rd option (ebook/audiobook/short-audiobook)
 [ ] package it up get it on github so we can deploy it
 [ ] docks for docker install
 [x] on import have the option to delete the original file

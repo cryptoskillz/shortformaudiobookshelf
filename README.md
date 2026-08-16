@@ -120,6 +120,10 @@ at a mounted `/config`.
 | **listener** | browse and play, and keep their own place in every book |
 | **admin** | all of that, plus scan, add, remove, organise, look up details, change settings and manage accounts |
 
+Signed out, the player shows a sign-in page and nothing else — no titles, no
+covers, no library at all. The account menu (top right) holds your username,
+Settings and Sign out.
+
 With no accounts the server is open to anyone who can reach it and every
 request is treated as an admin — the same behaviour as before accounts existed,
 and the settings panel says so in a warning. Adding the first account turns
@@ -143,9 +147,21 @@ startup, and any resume positions saved before accounts existed move to it.
 python3 server.py --set-password     # still works; creates or updates an admin
 ```
 
-Be aware that HTTP Basic sends the password in cleartext on the wire. That is a
-reasonable lock on your own network. It is **not** enough to put this server on
-the open internet.
+### How sign-in works
+
+The browser gets an **HMAC-signed session cookie**, not HTTP Basic. That matters
+because Basic has no sign-out: browsers cache the credentials and re-send them,
+and the usual workaround (deliberately failing an auth request) can leave the
+*wrong* credentials cached so you cannot sign back in at all. A cookie can
+simply be expired, so Sign out really signs you out and signing back in works
+immediately.
+
+The signing key lives in `secret` in the state directory (`0600`, created on
+first run). Sessions last 30 days. Deleting that file signs everyone out.
+
+HTTP Basic is still accepted for API clients, so `curl -u user:pass` keeps
+working. Either way the password crosses your network in the clear, so this is
+a lock for home use, not for the open internet.
 
 ## Scanning
 

@@ -35,7 +35,7 @@ const el = {
   loginUsername: $("login-username"), loginPassword: $("login-password"),
   loginSubmit: $("login-submit"), loginError: $("login-error"), signinHint: $("signin-hint"),
   defaultPasswordWarning: $("default-password-warning"),
-  stateWarning: $("state-warning"), stateWarningDetail: $("state-warning-detail"),
+  containerNote: $("container-note"), stateWarning: $("state-warning"), stateWarningDetail: $("state-warning-detail"),
   signinState: $("signin-state"),
   menuToggle: $("menu-toggle"), userMenu: $("user-menu"), menuWho: $("menu-who"),
   signout: $("signout"), settingsOpen: $("settings-open"), settings: $("settings"), settingsSave: $("settings-save"),
@@ -654,6 +654,7 @@ async function openSettings() {
     state.hadAccounts = config.authEnabled;
     await loadUsers();
     state.libraryMissing = config.libraryExists === false;
+    el.containerNote.hidden = !config.inContainer;
     el.stateWarning.hidden = config.stateWritable !== false;
     el.stateWarningDetail.textContent = config.stateProblem
       ? `${config.stateDir}: ${config.stateProblem}.` : "";

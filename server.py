@@ -104,6 +104,15 @@ SESSION_COOKIE = "sab_session"
 SESSION_DAYS = 30
 
 
+def in_container():
+    """Whether we are running inside a container.
+
+    Worth knowing because the folder settings then refer to paths *inside* the
+    container, and typing a host path into them would point at nothing.
+    """
+    return os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")
+
+
 def state_dir_writable(state_dir):
     """Whether we can actually persist anything. Returns (ok, reason)."""
     try:
@@ -1188,6 +1197,7 @@ class Handler(BaseHTTPRequestHandler):
             "libraryExists": os.path.isdir(self.lib.root),
             "stateWritable": getattr(self.server, "state_writable", True),
             "stateProblem": getattr(self.server, "state_problem", ""),
+            "inContainer": in_container(),
             "bookCount": len(self.lib.books),
             "boundHost": self.server.bound[0],
             "boundPort": self.server.bound[1],

@@ -8,17 +8,23 @@ COPY server.py library.py organise.py settings.py oggopus.py metadata.py users.p
 COPY web ./web
 
 # /library is what gets played. /incoming is the download folder that Import
-# takes files out of — never played from. /media is an optional tidy export.
-# /config is everything the app remembers.
+# takes files out of — never played from. /export is an optional tidy copy for
+# other tools. /config is everything the app remembers.
+#
+# Not /media: the base image already has a root-owned /media, so an unmapped
+# output folder looked like a real directory that could not be written to.
 ENV SHORTLIST_LIBRARY=/library \
     SHORTLIST_IMPORT=/incoming \
-    SHORTLIST_OUTPUT=/media \
+    SHORTLIST_OUTPUT=/export \
     SHORTLIST_STATE_DIR=/config \
     SHORTLIST_HOST=0.0.0.0 \
     SHORTLIST_PORT=7345 \
     PYTHONUNBUFFERED=1
 
-VOLUME ["/library", "/incoming", "/media", "/config"]
+# No VOLUME declaration on purpose. It would make Docker invent an anonymous,
+# root-owned volume for any of these paths a user does not map — which then
+# fails to be writable, is invisible in the compose file, and quietly
+# accumulates on disk. Bind mounts from compose are the only sane source.
 EXPOSE 7345
 
 # Probe the page shell, not the API: once accounts exist /api/library answers

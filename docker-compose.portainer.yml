@@ -26,8 +26,10 @@ services:
       # DOWNLOADS — where new files land. Import takes them out of here and
       # files them into the library. Nothing is ever played from here.
       - ${IMPORT_PATH:-/volume1/docker/media/downloads/audiobooks-incoming}:/incoming
-      # OPTIONAL — a tidy copy for other tools, if you ever want one.
-      - ${MEDIA_PATH:-/volume1/docker/media/audiobooks-export}:/media
+      # OPTIONAL — a tidy copy for other tools such as Audiobookshelf. Most
+      # setups do not need it: Import already files books into the library.
+      # Uncomment and point it somewhere if you do.
+      # - /volume1/docker/media/audiobooks-export:/export
       # STATE — index, covers, accounts, resume positions. Back this one up.
       - ${CONFIG_PATH:-/volume1/docker/shortform-audio/config}:/config
 

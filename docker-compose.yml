@@ -38,7 +38,8 @@ services:
     volumes:
       - ${LIBRARY_PATH:-./library}:/library
       - ${IMPORT_PATH:-./incoming}:/incoming
-      - ${MEDIA_PATH:-./media}:/media
+      # Optional; only needed if you want a second copy for other tools.
+      # - ${MEDIA_PATH:-./export}:/export
       - ${CONFIG_PATH:-./config}:/config
 
     environment:

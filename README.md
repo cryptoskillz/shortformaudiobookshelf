@@ -39,7 +39,7 @@ Three, and the app neither knows nor cares that they live on a NAS:
 | --- | --- |
 | `/library` | **the library** — what gets scanned, served and played. |
 | `/incoming` | **downloads** — where new files arrive. Import files them into the library; nothing is ever played from here. |
-| `/media` | optional tidy export for other tools. Leave it out if you do not want one. |
+| `/export` | optional tidy export for other tools. Leave it out if you do not want one. |
 | `/config` | index, cover cache, accounts, resume positions. **Back this one up.** |
 
 ```

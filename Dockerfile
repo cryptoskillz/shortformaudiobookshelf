@@ -7,16 +7,18 @@ WORKDIR /app
 COPY server.py library.py organise.py settings.py oggopus.py metadata.py users.py ./
 COPY web ./web
 
-# Input, output and state. Map all three in compose; the app neither knows nor
-# cares whether they are local disks or NAS shares.
+# /library is what gets played. /incoming is the download folder that Import
+# takes files out of — never played from. /media is an optional tidy export.
+# /config is everything the app remembers.
 ENV SHORTLIST_LIBRARY=/library \
+    SHORTLIST_IMPORT=/incoming \
     SHORTLIST_OUTPUT=/media \
     SHORTLIST_STATE_DIR=/config \
     SHORTLIST_HOST=0.0.0.0 \
     SHORTLIST_PORT=7345 \
     PYTHONUNBUFFERED=1
 
-VOLUME ["/library", "/media", "/config"]
+VOLUME ["/library", "/incoming", "/media", "/config"]
 EXPOSE 7345
 
 # Probe the page shell, not the API: once accounts exist /api/library answers

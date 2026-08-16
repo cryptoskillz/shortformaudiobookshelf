@@ -21,10 +21,13 @@ services:
       - "${HOST_PORT:-7345}:7345"
 
     volumes:
-      # INPUT — the messy folder. Uploads land here, scanning reads it.
-      - ${LIBRARY_PATH:-/volume1/media/audiobooks-incoming}:/library
-      # OUTPUT — the tidy Author/Title copy that Organise writes.
-      - ${MEDIA_PATH:-/volume1/media/audiobooks-shortform}:/media
+      # THE LIBRARY — what gets served and played.
+      - ${LIBRARY_PATH:-/volume1/docker/media/audiobooks-shortform}:/library
+      # DOWNLOADS — where new files land. Import takes them out of here and
+      # files them into the library. Nothing is ever played from here.
+      - ${IMPORT_PATH:-/volume1/docker/media/downloads/audiobooks-incoming}:/incoming
+      # OPTIONAL — a tidy copy for other tools, if you ever want one.
+      - ${MEDIA_PATH:-/volume1/docker/media/audiobooks-export}:/media
       # STATE — index, covers, accounts, resume positions. Back this one up.
       - ${CONFIG_PATH:-/volume1/docker/shortform-audio/config}:/config
 

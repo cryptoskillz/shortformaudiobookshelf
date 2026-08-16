@@ -95,7 +95,35 @@
         <small class="bad" id="library-writable" hidden></small>
       </div>
       <div class="field">
-        <span>Organised output folder</span>
+        <span>Download folder <span class="muted">(import source)</span></span>
+        <div class="with-button">
+          <input type="text" id="set-import" spellcheck="false" autocomplete="off" placeholder="(not set)">
+          <button class="ghost" data-browse="set-import">Browse…</button>
+        </div>
+        <small>New files arrive here. <strong>Import</strong> moves them into the library
+          below; nothing is ever played from here.</small>
+      </div>
+
+      <div class="organise-box">
+        <p class="muted small">
+          <strong>Import</strong> reads the download folder and files each book into the
+          library as <code>Author/Title</code>, then rescans. Tick the box to empty the
+          download folder as it goes.
+        </p>
+        <label class="checkbox">
+          <input type="checkbox" id="import-move">
+          <span><strong>Delete each download once its copy is verified</strong></span>
+        </label>
+        <div class="actions">
+          <button class="ghost" id="import-preview">Preview</button>
+          <button class="ghost" id="import-run">Import now</button>
+        </div>
+        <div class="progress" id="import-progress" hidden><span></span></div>
+        <small id="import-result"></small>
+      </div>
+
+      <div class="field">
+        <span>Organised output folder <span class="muted">(optional export)</span></span>
         <div class="with-button">
           <input type="text" id="set-output" spellcheck="false" autocomplete="off" placeholder="(not set)">
           <button class="ghost" data-browse="set-output">Browse…</button>

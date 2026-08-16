@@ -1007,6 +1007,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._handle_upload(query)
             if parts == ["api", "organise"]:
                 return self._handle_organise()
+            if parts == ["api", "import"]:
+                return self._handle_import()
             if parts == ["api", "authors"]:
                 return self._handle_author_apply()
             if parts[:2] == ["api", "users"] and len(parts) in (2, 4):
@@ -1218,6 +1220,9 @@ class Handler(BaseHTTPRequestHandler):
             "libraryProblem": directory_writable(self.lib.root)[1],
             "outputWritable": directory_writable(values["output"])[0] if values["output"] else True,
             "outputProblem": directory_writable(values["output"])[1] if values["output"] else "",
+            "importDir": getattr(self.server, "import_dir", "") or values.get("import_dir", ""),
+            "importExists": os.path.isdir(getattr(self.server, "import_dir", "")
+                                          or values.get("import_dir", "") or "/nonexistent"),
             "bookCount": len(self.lib.books),
             "boundHost": self.server.bound[0],
             "boundPort": self.server.bound[1],
@@ -1551,6 +1556,49 @@ class Handler(BaseHTTPRequestHandler):
         self.server.removed.restore(book_id)
         self._send_json({"restored": True, "title": entry.get("title", "")})
 
+    def _handle_import(self):
+        """Bring files in from the download folder into the library.
+
+        This is the mirror of organise: the source is the download folder, the
+        destination is the library that actually gets served. Nothing is ever
+        played out of the download folder.
+        """
+        if not self._require_admin():
+            return
+        body = self._read_body()
+        source = str(body.get("importDir")
+                     or getattr(self.server, "import_dir", "")
+                     or settings_module.load(self.server.settings_file).get("import_dir")
+                     or "").strip()
+        if not source:
+            return self._error(HTTPStatus.BAD_REQUEST,
+                               "no download folder set — choose one in Settings first")
+        source = os.path.abspath(os.path.expanduser(source))
+        if not os.path.isdir(source):
+            return self._error(HTTPStatus.BAD_REQUEST, f"not a directory: {source}")
+        if organise_module._overlaps(source, self.lib.root):
+            return self._error(HTTPStatus.BAD_REQUEST,
+                               "the download folder overlaps the library — they must be separate")
+
+        try:
+            incoming = library.Library(source, cache_path=None,
+                                       cover_dir=self.server.paths["covers"])
+            incoming.scan()
+        except FileNotFoundError as exc:
+            return self._error(HTTPStatus.BAD_REQUEST, str(exc))
+
+        started = self.server.organise_job.start(
+            incoming, self.lib.root,
+            dry_run=bool(body.get("dryRun")),
+            overwrite=False,
+            playlists_only=False,
+            delete_originals=bool(body.get("deleteOriginals")) and bool(body.get("confirm")),
+        )
+        if not started:
+            return self._error(HTTPStatus.CONFLICT, "an import or organise is already running")
+        self._send_json({"started": True, "source": source,
+                         "books": len(incoming.books), "destination": self.lib.root})
+
     def _handle_organise(self):
         """Start an organise run into the configured output folder."""
         if not self._require_admin():
@@ -1604,6 +1652,11 @@ class Handler(BaseHTTPRequestHandler):
 
         output_path = str(body.get("output", "")).strip()
         values["output"] = os.path.abspath(os.path.expanduser(output_path)) if output_path else ""
+
+        import_path = str(body.get("importDir", "")).strip()
+        values["import_dir"] = (os.path.abspath(os.path.expanduser(import_path))
+                                if import_path else "")
+        self.server.import_dir = values["import_dir"]
 
         if body.get("host"):
             values["host"] = str(body["host"]).strip()
@@ -1878,6 +1931,49 @@ class Handler(BaseHTTPRequestHandler):
         self.server.removed.restore(book_id)
         self._send_json({"restored": True, "title": entry.get("title", "")})
 
+    def _handle_import(self):
+        """Bring files in from the download folder into the library.
+
+        This is the mirror of organise: the source is the download folder, the
+        destination is the library that actually gets served. Nothing is ever
+        played out of the download folder.
+        """
+        if not self._require_admin():
+            return
+        body = self._read_body()
+        source = str(body.get("importDir")
+                     or getattr(self.server, "import_dir", "")
+                     or settings_module.load(self.server.settings_file).get("import_dir")
+                     or "").strip()
+        if not source:
+            return self._error(HTTPStatus.BAD_REQUEST,
+                               "no download folder set — choose one in Settings first")
+        source = os.path.abspath(os.path.expanduser(source))
+        if not os.path.isdir(source):
+            return self._error(HTTPStatus.BAD_REQUEST, f"not a directory: {source}")
+        if organise_module._overlaps(source, self.lib.root):
+            return self._error(HTTPStatus.BAD_REQUEST,
+                               "the download folder overlaps the library — they must be separate")
+
+        try:
+            incoming = library.Library(source, cache_path=None,
+                                       cover_dir=self.server.paths["covers"])
+            incoming.scan()
+        except FileNotFoundError as exc:
+            return self._error(HTTPStatus.BAD_REQUEST, str(exc))
+
+        started = self.server.organise_job.start(
+            incoming, self.lib.root,
+            dry_run=bool(body.get("dryRun")),
+            overwrite=False,
+            playlists_only=False,
+            delete_originals=bool(body.get("deleteOriginals")) and bool(body.get("confirm")),
+        )
+        if not started:
+            return self._error(HTTPStatus.CONFLICT, "an import or organise is already running")
+        self._send_json({"started": True, "source": source,
+                         "books": len(incoming.books), "destination": self.lib.root})
+
     def _handle_organise(self):
         """Start an organise run into the configured output folder."""
         if not self._require_admin():
@@ -1931,6 +2027,11 @@ class Handler(BaseHTTPRequestHandler):
 
         output_path = str(body.get("output", "")).strip()
         values["output"] = os.path.abspath(os.path.expanduser(output_path)) if output_path else ""
+
+        import_path = str(body.get("importDir", "")).strip()
+        values["import_dir"] = (os.path.abspath(os.path.expanduser(import_path))
+                                if import_path else "")
+        self.server.import_dir = values["import_dir"]
 
         if body.get("host"):
             values["host"] = str(body["host"]).strip()
@@ -2242,7 +2343,8 @@ def rebind(current, host, port):
         verbose=current.verbose, index_path=current.index_path,
         settings_file=current.settings_file,
         organise_job=current.organise_job, state=current.state,
-        paths=current.paths, state_writable=current.state_writable,
+        paths=current.paths, import_dir=current.import_dir,
+        state_writable=current.state_writable,
         state_problem=current.state_problem, bound=(host, port),
     )
     current.state["next"] = replacement
@@ -2269,6 +2371,9 @@ def build_parser():
     parser = argparse.ArgumentParser(description="Shortform Audio Bookshelf — audiobook server and player")
     parser.add_argument("root", nargs="?", help="library directory (default: the saved setting)")
     parser.add_argument("--output", help="directory --organise writes the tidy copy into")
+    parser.add_argument("--import-dir", dest="import_dir",
+                        help="download folder to import from (files are taken out of it, "
+                             "not played from it)")
     parser.add_argument("--port", type=int)
     parser.add_argument("--host", help="bind address (default: all interfaces)")
     parser.add_argument("-v", "--verbose", action="store_true", default=None, help="log every request")
@@ -2304,7 +2409,8 @@ def _resolve(args):
     """Settings file, overridden by whichever flags were actually given."""
     values = settings_module.load(args.settings_file)
     for key, given in (
-        ("library", args.root), ("output", args.output), ("port", args.port),
+        ("library", args.root), ("output", args.output), ("import_dir", args.import_dir),
+        ("port", args.port),
         ("host", args.host), ("verbose", args.verbose),
     ):
         if given is not None:
@@ -2574,6 +2680,7 @@ def main(argv=None):
         organise_job=OrganiseJob(),
         state=state,
         paths=paths,
+        import_dir=values["import_dir"],
         state_writable=writable,
         state_problem=why,
     )

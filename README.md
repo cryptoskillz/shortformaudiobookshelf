@@ -37,8 +37,9 @@ Three, and the app neither knows nor cares that they live on a NAS:
 
 | Mount | What it is |
 | --- | --- |
-| `/library` | **input** — the messy folder. Uploads land here, scanning reads it. |
-| `/media` | **output** — the tidy `Author/Title` copy that Organise writes. |
+| `/library` | **the library** — what gets scanned, served and played. |
+| `/incoming` | **downloads** — where new files arrive. Import files them into the library; nothing is ever played from here. |
+| `/media` | optional tidy export for other tools. Leave it out if you do not want one. |
 | `/config` | index, cover cache, accounts, resume positions. **Back this one up.** |
 
 ```
@@ -57,8 +58,9 @@ clone on the NAS.
 
 | Name | Example |
 | --- | --- |
-| `LIBRARY_PATH` | `/volume1/media/audiobooks-incoming` |
-| `MEDIA_PATH` | `/volume1/media/audiobooks-shortform` |
+| `LIBRARY_PATH` | `/volume1/docker/media/audiobooks-shortform` |
+| `IMPORT_PATH` | `/volume1/docker/media/downloads/audiobooks-incoming` |
+| `MEDIA_PATH` | `/volume1/docker/media/audiobooks-export` (optional) |
 | `CONFIG_PATH` | `/volume1/docker/shortform-audio/config` |
 | `HOST_PORT` | `7345` |
 | `PUID` / `PGID` | whatever `id -u` and `id -g` report for the user that owns your media |
@@ -446,6 +448,23 @@ changes to say so, the files are listed, and the request needs an explicit
 confirmation flag, so a stray click or a replayed request cannot erase audio.
 An emptied book folder is tidied up, but never the library root or an author
 folder that still has books in it. There is no trash — deleted is deleted.
+
+## Importing from a download folder
+
+Set a **download folder** in Settings and new files can land there — from a
+download client, a share, wherever. **Import** reads it, files each book into
+the library as `Author/Title`, and rescans, so it appears ready to play.
+
+**Preview** shows the plan and writes nothing. Ticking *delete each download
+once its copy is verified* empties the download folder as it goes, and the
+delete only happens after the copy exists at a matching size, so a failed copy
+can never lose the original.
+
+Files the scan set aside as duplicates are not imported, and so are not
+deleted — they stay in the download folder for you to look at.
+
+The library and the download folder must be separate directories; importing a
+folder into itself is refused.
 
 ## Adding books
 

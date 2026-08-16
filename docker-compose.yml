@@ -7,8 +7,9 @@
 #
 # Set these in the stack's Environment variables:
 #
-#   LIBRARY_PATH   input  — the messy folder, uploads land here
-#   MEDIA_PATH     output — the tidy Author/Title copy
+#   LIBRARY_PATH   the library that gets played
+#   IMPORT_PATH    the download folder Import takes files out of
+#   MEDIA_PATH     optional tidy export for other tools
 #   CONFIG_PATH    index, covers, accounts, resume positions
 #   HOST_PORT      port on the NAS (7345 by default)
 #   PUID / PGID    `id -u`, `id -g` for whoever owns your media
@@ -36,6 +37,7 @@ services:
 
     volumes:
       - ${LIBRARY_PATH:-./library}:/library
+      - ${IMPORT_PATH:-./incoming}:/incoming
       - ${MEDIA_PATH:-./media}:/media
       - ${CONFIG_PATH:-./config}:/config
 

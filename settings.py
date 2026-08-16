@@ -36,6 +36,7 @@ SETTINGS_FILE = os.path.join(STATE_DIR, "settings.json")
 DEFAULTS = {
     "library": "~/Audiobooks",
     "output": "",
+    "import_dir": "",
     "host": "0.0.0.0",
     "port": 7345,
     "scan_on_start": False,
@@ -48,6 +49,7 @@ DEFAULTS = {
 ENV_KEYS = {
     "library": "SHORTLIST_LIBRARY",
     "output": "SHORTLIST_OUTPUT",
+    "import_dir": "SHORTLIST_IMPORT",
     "port": "SHORTLIST_PORT",
     "host": "SHORTLIST_HOST",
 }
@@ -101,7 +103,7 @@ def load(path=SETTINGS_FILE):
     except (OSError, ValueError):
         pass  # no settings file yet, or it is unreadable — defaults stand
 
-    for key in ("library", "output"):
+    for key in ("library", "output", "import_dir"):
         if values[key]:
             values[key] = os.path.abspath(os.path.expanduser(values[key]))
     values["port"] = int(values["port"])
@@ -134,7 +136,7 @@ def save(values, path=SETTINGS_FILE):
 
 def describe(values):
     lines = []
-    for key in ("library", "output", "host", "port", "scan_on_start", "verbose"):
+    for key in ("library", "import_dir", "output", "host", "port", "scan_on_start", "verbose"):
         lines.append(f"  {key:<14} {values.get(key) or '—'}")
     lines.append(f"  {'auth':<14} " + (f"enabled (user {values['username']})"
                                        if values.get("username") and values.get("password_hash")

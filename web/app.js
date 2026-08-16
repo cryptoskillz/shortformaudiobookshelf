@@ -53,6 +53,10 @@ const el = {
   fetchAll: $("fetch-all"), fetchStop: $("fetch-stop"),
   fetchProgress: $("fetch-progress"), fetchResult: $("fetch-result"),
 
+  setImport: $("set-import"), importMove: $("import-move"),
+  importPreview: $("import-preview"), importRun: $("import-run"),
+  importProgress: $("import-progress"), importResult: $("import-result"),
+
   organisePreview: $("organise-preview"), organiseRun: $("organise-run"),
   organisePlaylists: $("organise-playlists"), organiseProgress: $("organise-progress"),
   organiseResult: $("organise-result"),
@@ -647,6 +651,7 @@ async function openSettings() {
     const config = await api("/api/settings");
     el.setLibrary.value = config.library || "";
     el.setOutput.value = config.output || "";
+    el.setImport.value = config.importDir || "";
     el.setHost.value = config.host || "";
     el.setPort.value = config.port || "";
     el.ownCurrent.value = el.ownPassword.value = el.ownConfirm.value = "";
@@ -694,6 +699,7 @@ async function saveSettings() {
       body: JSON.stringify({
         library: el.setLibrary.value.trim(),
         output: el.setOutput.value.trim(),
+        importDir: el.setImport.value.trim(),
         host: el.setHost.value.trim(),
         port: el.setPort.value,
       }),
@@ -1050,6 +1056,83 @@ el.fetchStop.addEventListener("click", async (event) => {
   el.fetchStop.disabled = false;
 });
 
+/* ----------------------------------------------------------------- import */
+
+async function runImport(dryRun) {
+  const source = el.setImport.value.trim();
+  if (!source) {
+    el.importResult.textContent = "Set a download folder first.";
+    el.importResult.className = "bad";
+    return;
+  }
+  if (!dryRun && el.importMove.checked &&
+      !confirm("This deletes each download once its copy in the library is verified.\n\n" +
+               "The download folder will end up empty. Continue?")) {
+    return;
+  }
+
+  el.importPreview.disabled = el.importRun.disabled = true;
+  el.importResult.className = "";
+  el.importResult.textContent = dryRun ? "Working out the plan…" : "Starting…";
+  el.importProgress.hidden = false;
+  el.importProgress.firstElementChild.style.width = "0%";
+
+  try {
+    const started = await api("/api/import", {
+      method: "POST",
+      body: JSON.stringify({
+        importDir: source,
+        dryRun,
+        deleteOriginals: el.importMove.checked,
+        confirm: el.importMove.checked,
+      }),
+    });
+    el.importResult.textContent = `Found ${started.books} books in the download folder…`;
+  } catch (error) {
+    el.importResult.textContent = error.message;
+    el.importResult.className = "bad";
+    el.importProgress.hidden = true;
+    el.importPreview.disabled = el.importRun.disabled = false;
+    return;
+  }
+
+  while (true) {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    let status;
+    try {
+      status = await api("/api/organise/status");
+    } catch (error) {
+      el.importResult.textContent = `Lost contact with the server: ${error.message}`;
+      break;
+    }
+    if (status.total) {
+      el.importProgress.firstElementChild.style.width =
+        `${Math.round((status.done / status.total) * 100)}%`;
+      el.importResult.textContent = `${status.done} of ${status.total} — ${status.current || ""}`;
+    }
+    if (!status.running) {
+      el.importProgress.firstElementChild.style.width = "100%";
+      if (status.error) {
+        el.importResult.textContent = status.error;
+        el.importResult.className = "bad";
+      } else {
+        // The library has new files in it now, so it has to be re-read.
+        if (!dryRun) {
+          try { await api("/api/rescan", { method: "POST" }); await loadLibrary(); } catch {}
+        }
+        el.importResult.textContent =
+          (dryRun ? "Preview — nothing written. " : "Imported. ") + (status.summary || "");
+        el.importResult.className = "ok";
+      }
+      break;
+    }
+  }
+  el.importPreview.disabled = el.importRun.disabled = false;
+}
+
+el.importPreview.addEventListener("click", (e) => { e.preventDefault(); runImport(true); });
+el.importRun.addEventListener("click", (e) => { e.preventDefault(); runImport(false); });
+
 /* --------------------------------------------------------------- organise */
 
 async function runOrganise(dryRun) {
@@ -1158,9 +1241,13 @@ async function showFolder(path) {
 }
 
 function openPicker(targetId) {
-  picker.target = el[targetId === "set-library" ? "setLibrary" : "setOutput"];
-  el.pickerTitle.textContent =
-    targetId === "set-library" ? "Choose the library folder" : "Choose the output folder";
+  picker.target = { "set-library": el.setLibrary, "set-output": el.setOutput,
+                    "set-import": el.setImport }[targetId] || el.setLibrary;
+  el.pickerTitle.textContent = {
+    "set-library": "Choose the library folder",
+    "set-output": "Choose the output folder",
+    "set-import": "Choose the download folder",
+  }[targetId] || "Choose a folder";
   el.picker.showModal();
   showFolder(picker.target.value.trim());
 }

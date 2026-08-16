@@ -1170,6 +1170,7 @@ class Handler(BaseHTTPRequestHandler):
             "settingsFile": self.server.settings_file,
             "stateDir": self.server.paths["dir"],
             "activeLibrary": self.lib.root,          # what is loaded right now
+            "libraryExists": os.path.isdir(self.lib.root),
             "bookCount": len(self.lib.books),
             "boundHost": self.server.bound[0],
             "boundPort": self.server.bound[1],
@@ -2373,9 +2374,18 @@ def main(argv=None):
         try:
             lib.scan()
         except FileNotFoundError as exc:
-            print(f"error: {exc}", file=sys.stderr)
-            print("Set one with:  python3 server.py /path/to/audiobooks --save-settings", file=sys.stderr)
-            return 1
+            # Serving on regardless is deliberate. Exiting here means a
+            # container restart loop and a browser showing nothing at all,
+            # which tells you far less than a running player that says the
+            # folder is missing and lets you point it somewhere else.
+            if args.scan_only or args.organise:
+                print(f"error: {exc}", file=sys.stderr)
+                print("Set one with:  python3 server.py /path/to/audiobooks --save-settings",
+                      file=sys.stderr)
+                return 1
+            print(f"warning: {exc}")
+            print("Starting anyway with an empty library — set the folder in the player "
+                  "under Settings, or with --save-settings.")
         tracks = sum(b["track_count"] for b in lib.books)
         duplicates = sum(len(b.get("duplicates") or []) for b in lib.books)
         print(f"Found {len(lib.books)} book{'s' if len(lib.books) != 1 else ''} "

@@ -199,13 +199,17 @@ function renderLibrary() {
   el.empty.hidden = books.length > 0;
   el.empty.textContent = state.books.length
     ? "Nothing matches those filters."
-    : "No audiobooks found. Check the library directory, then press Rescan.";
+    : (state.libraryMissing
+        ? `The library folder does not exist: ${state.libraryRoot}. ` +
+          "Set it under Settings, or check the folder is mounted."
+        : "No audiobooks found. Check the library directory, then press Rescan.");
 }
 
 async function loadLibrary() {
   const data = await api("/api/library");
   state.books = data.books;
   state.progress = data.progress || {};
+  state.libraryRoot = data.root;
   document.title = "Shortform Audio Bookshelf";
   renderFilters();
   renderLibrary();
@@ -647,6 +651,7 @@ async function openSettings() {
     el.verifyResult.className = el.matchResult.className = "";
     state.hadAccounts = config.authEnabled;
     await loadUsers();
+    state.libraryMissing = config.libraryExists === false;
     el.settingsPaths.textContent =
       `${config.bookCount} books loaded · listening on ${config.boundHost}:${config.boundPort}`
       + ` · settings in ${config.settingsFile}`;

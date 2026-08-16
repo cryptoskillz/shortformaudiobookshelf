@@ -104,6 +104,19 @@ SESSION_COOKIE = "sab_session"
 SESSION_DAYS = 30
 
 
+def state_dir_writable(state_dir):
+    """Whether we can actually persist anything. Returns (ok, reason)."""
+    try:
+        os.makedirs(state_dir, exist_ok=True)
+        probe = os.path.join(state_dir, f".writetest.{os.getpid()}")
+        with open(probe, "w") as fh:
+            fh.write("ok")
+        os.remove(probe)
+        return True, ""
+    except OSError as exc:
+        return False, exc.strerror or str(exc)
+
+
 def session_secret(state_dir):
     """A per-install key for signing session cookies, created on first use."""
     path = os.path.join(state_dir, "secret")
@@ -1044,6 +1057,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_json({
                 "defaultPassword": self.server.users.using_default_password(),
                 "accountsConfigured": self.server.users.any(),
+                "stateWritable": getattr(self.server, "state_writable", True),
+                "stateProblem": getattr(self.server, "state_problem", ""),
             })
         if parts == ["users"]:
             return self._handle_users()
@@ -1171,6 +1186,8 @@ class Handler(BaseHTTPRequestHandler):
             "stateDir": self.server.paths["dir"],
             "activeLibrary": self.lib.root,          # what is loaded right now
             "libraryExists": os.path.isdir(self.lib.root),
+            "stateWritable": getattr(self.server, "state_writable", True),
+            "stateProblem": getattr(self.server, "state_problem", ""),
             "bookCount": len(self.lib.books),
             "boundHost": self.server.bound[0],
             "boundPort": self.server.bound[1],
@@ -2179,7 +2196,8 @@ def rebind(current, host, port):
         verbose=current.verbose, index_path=current.index_path,
         settings_file=current.settings_file,
         organise_job=current.organise_job, state=current.state,
-        paths=current.paths, bound=(host, port),
+        paths=current.paths, state_writable=current.state_writable,
+        state_problem=current.state_problem, bound=(host, port),
     )
     current.state["next"] = replacement
     # Let the response reach the browser before the socket goes away.
@@ -2443,6 +2461,20 @@ def main(argv=None):
     # adopted as the first admin so nobody is locked out by upgrading.
     user_store = users_module.UserStore(os.path.join(paths["dir"], "users.json"))
     progress_store = ProgressStore(paths["progress"])
+    # Nothing persists if the state directory cannot be written, which on a NAS
+    # is almost always the config folder being owned by root while the container
+    # runs as PUID. Say so loudly and keep serving: a container that exits here
+    # just restart-loops, and the reason is buried in logs nobody can reach.
+    writable, why = state_dir_writable(paths["dir"])
+    if not writable:
+        print("\n" + "!" * 70, file=sys.stderr)
+        print(f"  {paths['dir']} is not writable: {why}", file=sys.stderr)
+        print("  Accounts, resume positions and the index cannot be saved.", file=sys.stderr)
+        print("  In Docker this is usually the config folder's owner not matching", file=sys.stderr)
+        print("  PUID/PGID. On the host:", file=sys.stderr)
+        print(f"      sudo chown -R {os.getuid()}:{os.getgid()} <your config folder>", file=sys.stderr)
+        print("!" * 70 + "\n", file=sys.stderr)
+
     if not user_store.any() and not (values.get("username") and values.get("password_hash")):
         # A brand-new install: seed a default admin so there is always a way in.
         try:
@@ -2451,8 +2483,7 @@ def main(argv=None):
                       f"'{users_module.DEFAULT_USERNAME}' / '{users_module.DEFAULT_PASSWORD}' "
                       f"— change it in the player.")
         except ValueError as exc:
-            print(f"error: {exc}", file=sys.stderr)
-            return 1
+            print(f"warning: {exc}", file=sys.stderr)
     if values.get("username") and values.get("password_hash") and not user_store.any():
         if user_store.adopt(values["username"], values["password_hash"]):
             # Positions saved before accounts existed sit in the anonymous
@@ -2480,6 +2511,8 @@ def main(argv=None):
         organise_job=OrganiseJob(),
         state=state,
         paths=paths,
+        state_writable=writable,
+        state_problem=why,
     )
 
     def banner(server):

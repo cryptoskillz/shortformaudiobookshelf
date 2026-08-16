@@ -35,6 +35,8 @@ const el = {
   loginUsername: $("login-username"), loginPassword: $("login-password"),
   loginSubmit: $("login-submit"), loginError: $("login-error"), signinHint: $("signin-hint"),
   defaultPasswordWarning: $("default-password-warning"),
+  stateWarning: $("state-warning"), stateWarningDetail: $("state-warning-detail"),
+  signinState: $("signin-state"),
   menuToggle: $("menu-toggle"), userMenu: $("user-menu"), menuWho: $("menu-who"),
   signout: $("signout"), settingsOpen: $("settings-open"), settings: $("settings"), settingsSave: $("settings-save"),
   settingsCancel: $("settings-cancel"), settingsStatus: $("settings-status"),
@@ -652,6 +654,9 @@ async function openSettings() {
     state.hadAccounts = config.authEnabled;
     await loadUsers();
     state.libraryMissing = config.libraryExists === false;
+    el.stateWarning.hidden = config.stateWritable !== false;
+    el.stateWarningDetail.textContent = config.stateProblem
+      ? `${config.stateDir}: ${config.stateProblem}.` : "";
     el.settingsPaths.textContent =
       `${config.bookCount} books loaded · listening on ${config.boundHost}:${config.boundPort}`
       + ` · settings in ${config.settingsFile}`;
@@ -1457,8 +1462,9 @@ async function showSignIn(message) {
   el.signin.hidden = false;
   el.app.hidden = true;
   try {
-    const state = await (await fetch("/api/first-run")).json();
-    el.signinHint.hidden = !state.defaultPassword;
+    const first = await (await fetch("/api/first-run")).json();
+    el.signinHint.hidden = !first.defaultPassword;
+    el.signinState.hidden = first.stateWritable !== false;
   } catch {
     el.signinHint.hidden = true;
   }

@@ -508,6 +508,11 @@ dialog::backdrop { background: rgba(0, 0, 0, .45); backdrop-filter: blur(2px); }
 .field-row .field { flex: 1 1 200px; }
 .field-row .field.narrow { flex: 0 1 110px; }
 
+.warn.danger-warn {
+  background: color-mix(in srgb, #c0392b 14%, transparent);
+  border-color: color-mix(in srgb, #c0392b 45%, transparent);
+}
+
 .warn {
   margin: 0 0 20px;
   padding: 11px 14px;

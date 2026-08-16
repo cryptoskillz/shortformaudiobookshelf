@@ -25,6 +25,10 @@
     </label>
     <button class="primary" type="submit" id="login-submit">Sign in</button>
     <p class="signin-error" id="login-error" hidden></p>
+    <p class="signin-error" id="signin-state" hidden>
+      The server cannot write to its config folder, so accounts will not persist.
+      Fix the folder's permissions, then restart the container.
+    </p>
     <p class="signin-hint" id="signin-hint" hidden>
       First run? Sign in with <strong>admin</strong> / <strong>admin</strong>, then
       change the password.
@@ -60,6 +64,11 @@
   </form>
 
   <div class="dialog-body">
+    <p class="warn danger-warn" id="state-warning" hidden>
+      <strong>Nothing can be saved.</strong> <span id="state-warning-detail"></span>
+      Accounts, resume positions and the index will be lost on restart. In Docker
+      this is normally the config folder's owner not matching PUID/PGID.
+    </p>
     <p class="warn" id="auth-warning" hidden>
       No login is set — anyone who can reach this server on your network can listen,
       upload files and change these settings.

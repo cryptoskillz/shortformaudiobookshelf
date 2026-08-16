@@ -2114,7 +2114,23 @@ class Handler(BaseHTTPRequestHandler):
         if path:
             mime = mimetypes.guess_type(path)[0] or "image/jpeg"
             return self._stream_file(path, mime, cacheable=True)
-        self._error(HTTPStatus.NOT_FOUND, "no cover")
+
+        # Caching the extracted art failed — usually an unwritable state
+        # directory. Serve it straight from the tags rather than showing a
+        # broken image for every book.
+        picture = self.lib.cover_bytes(book)
+        if picture:
+            mime, data = picture
+            return self._send_bytes(data, mime, cache="public, max-age=3600")
+
+        # Distinguish "the scan saw no art" from "the art will not parse now",
+        # because they have completely different causes.
+        if not book.get("cover_embedded"):
+            return self._error(HTTPStatus.NOT_FOUND,
+                               "the scan found no cover art in this book's tags — "
+                               "rescan if the files have changed since")
+        self._error(HTTPStatus.NOT_FOUND,
+                    "the tags claim cover art but it could not be read now")
 
     def _handle_audio(self, book_id, track_index):
         book = self.lib.by_id.get(book_id)

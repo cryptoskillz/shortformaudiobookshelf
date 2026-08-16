@@ -576,9 +576,21 @@ class Library:
                 fh.write(data)
             os.replace(temp, path)  # concurrent requests must not see a half file
         except OSError:
+            # An unwritable cache is a performance problem, not a reason to
+            # show a broken image for every book in the library.
             return None
         book["cover_cache"] = path
         return path
+
+    def cover_bytes(self, book):
+        """The cover as (mime, data), read straight from the tags.
+
+        The fallback for when the cache cannot be written: slower, because it
+        re-parses the file each time, but it still shows the artwork.
+        """
+        if not book.get("cover_embedded") or not book.get("tracks"):
+            return None
+        return oggopus.read_picture(book["tracks"][0]["path"])
 
     # ---- the persisted index ---------------------------------------------
     #

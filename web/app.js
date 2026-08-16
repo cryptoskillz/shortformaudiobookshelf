@@ -35,7 +35,8 @@ const el = {
   loginUsername: $("login-username"), loginPassword: $("login-password"),
   loginSubmit: $("login-submit"), loginError: $("login-error"), signinHint: $("signin-hint"),
   defaultPasswordWarning: $("default-password-warning"),
-  containerNote: $("container-note"), stateWarning: $("state-warning"), stateWarningDetail: $("state-warning-detail"),
+  containerNote: $("container-note"), libraryWritable: $("library-writable"),
+  outputWritable: $("output-writable"), uploadBlocked: $("upload-blocked"), stateWarning: $("state-warning"), stateWarningDetail: $("state-warning-detail"),
   signinState: $("signin-state"),
   menuToggle: $("menu-toggle"), userMenu: $("user-menu"), menuWho: $("menu-who"),
   signout: $("signout"), settingsOpen: $("settings-open"), settings: $("settings"), settingsSave: $("settings-save"),
@@ -655,6 +656,19 @@ async function openSettings() {
     await loadUsers();
     state.libraryMissing = config.libraryExists === false;
     el.containerNote.hidden = !config.inContainer;
+
+    // A folder the server cannot write to fails much later and confusingly,
+    // so say it where the folder is configured.
+    el.libraryWritable.hidden = config.libraryWritable !== false;
+    el.libraryWritable.textContent = config.libraryWritable === false
+      ? `Not writable (${config.libraryProblem}) — uploads will fail. `
+        + "In Docker, chown it to your PUID/PGID on the host."
+      : "";
+    el.outputWritable.hidden = config.outputWritable !== false;
+    el.outputWritable.textContent = config.outputWritable === false
+      ? `Not writable (${config.outputProblem}) — organising will fail. `
+        + "In Docker, chown it to your PUID/PGID on the host."
+      : "";
     el.stateWarning.hidden = config.stateWritable !== false;
     el.stateWarningDetail.textContent = config.stateProblem
       ? `${config.stateDir}: ${config.stateProblem}.` : "";
@@ -1418,6 +1432,10 @@ el.uploadOpen.addEventListener("click", async () => {
   try {
     const config = await api("/api/settings");
     el.uploadTarget.textContent = `Files are saved into ${config.activeLibrary}`;
+    el.uploadBlocked.hidden = config.libraryWritable !== false;
+    el.uploadBlocked.textContent = config.libraryWritable === false
+      ? `That folder is not writable (${config.libraryProblem}), so uploads will fail.`
+      : "";
   } catch {
     el.uploadTarget.textContent = "";
   }

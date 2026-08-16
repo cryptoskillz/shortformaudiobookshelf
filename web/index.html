@@ -92,6 +92,7 @@
           <button class="ghost" data-browse="set-library">Browse…</button>
         </div>
         <small>Scanned for audiobooks. Uploads are saved straight into it.</small>
+        <small class="bad" id="library-writable" hidden></small>
       </div>
       <div class="field">
         <span>Organised output folder</span>
@@ -100,6 +101,7 @@
           <button class="ghost" data-browse="set-output">Browse…</button>
         </div>
         <small>A tidy <em>copy</em> is written here when you organise. Must be outside the library.</small>
+        <small class="bad" id="output-writable" hidden></small>
       </div>
 
       <div class="organise-box">
@@ -331,6 +333,7 @@
       <span class="muted small">or</span>
       <button class="ghost" id="choose-files">Choose files…</button>
       <small class="muted" id="upload-target"></small>
+      <small class="bad" id="upload-blocked" hidden></small>
     </div>
     <ul class="uploads" id="upload-list"></ul>
   </div>

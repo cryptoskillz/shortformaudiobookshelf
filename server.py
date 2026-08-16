@@ -113,17 +113,33 @@ def in_container():
     return os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")
 
 
-def state_dir_writable(state_dir):
-    """Whether we can actually persist anything. Returns (ok, reason)."""
+def directory_writable(path, create=False):
+    """Whether we can write into a directory. Returns (ok, reason).
+
+    Bind-mounted folders that Docker created are owned by root, so a container
+    running as PUID cannot write to them. That surfaces much later as an upload
+    or an organise failing for no visible reason, so every folder we depend on
+    is probed up front.
+    """
+    if not path:
+        return True, ""
     try:
-        os.makedirs(state_dir, exist_ok=True)
-        probe = os.path.join(state_dir, f".writetest.{os.getpid()}")
+        if create:
+            os.makedirs(path, exist_ok=True)
+        elif not os.path.isdir(path):
+            return False, "does not exist"
+        probe = os.path.join(path, f".writetest.{os.getpid()}")
         with open(probe, "w") as fh:
             fh.write("ok")
         os.remove(probe)
         return True, ""
     except OSError as exc:
         return False, exc.strerror or str(exc)
+
+
+def state_dir_writable(state_dir):
+    """Whether we can actually persist anything. Returns (ok, reason)."""
+    return directory_writable(state_dir, create=True)
 
 
 def session_secret(state_dir):
@@ -1198,6 +1214,10 @@ class Handler(BaseHTTPRequestHandler):
             "stateWritable": getattr(self.server, "state_writable", True),
             "stateProblem": getattr(self.server, "state_problem", ""),
             "inContainer": in_container(),
+            "libraryWritable": directory_writable(self.lib.root)[0],
+            "libraryProblem": directory_writable(self.lib.root)[1],
+            "outputWritable": directory_writable(values["output"])[0] if values["output"] else True,
+            "outputProblem": directory_writable(values["output"])[1] if values["output"] else "",
             "bookCount": len(self.lib.books),
             "boundHost": self.server.bound[0],
             "boundPort": self.server.bound[1],
@@ -2484,6 +2504,15 @@ def main(argv=None):
         print("  PUID/PGID. On the host:", file=sys.stderr)
         print(f"      sudo chown -R {os.getuid()}:{os.getgid()} <your config folder>", file=sys.stderr)
         print("!" * 70 + "\n", file=sys.stderr)
+
+    for label, folder in (("library", values["library"]), ("output", values["output"])):
+        if not folder:
+            continue
+        ok, why = directory_writable(folder)
+        if not ok and os.path.isdir(folder):
+            print(f"warning: the {label} folder {folder} is not writable ({why}). "
+                  f"Uploads and organising will fail. "
+                  f"Try: chown -R {os.getuid()}:{os.getgid()} {folder}", file=sys.stderr)
 
     if not user_store.any() and not (values.get("username") and values.get("password_hash")):
         # A brand-new install: seed a default admin so there is always a way in.

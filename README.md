@@ -133,8 +133,10 @@ the settings file, which beats the environment, which beats the defaults.
 | `--save-settings` | store the options given on this command line as the defaults |
 | `--settings-list` | print what is currently configured |
 | `--output DIR` | where `--organise` writes its copy |
-| `--set-password` | set a username and password for the player |
-| `--clear-password` | remove the login |
+| `--set-password` | create or reset an admin account |
+| `--list-users` | print the accounts and their roles |
+| `--remove-accounts` | delete every account, leaving the server open |
+| `--state-dir` | where index, covers, accounts and progress live |
 | `--host` / `--port` | bind address and port (default `0.0.0.0:7345`) |
 | `--settings-file` | use a different settings file entirely |
 

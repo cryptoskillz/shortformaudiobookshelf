@@ -45,35 +45,71 @@ body {
 button, select, input { font: inherit; color: inherit; }
 button { cursor: pointer; }
 
-/* ---------- sign in ---------- */
+/* ---------- sign in / landing ---------- */
 
 .signin {
   position: fixed;
   inset: 0;
   z-index: 100;
-  display: grid;
-  place-items: center;
-  padding: 24px;
+  overflow-y: auto;
   background: var(--bg);
 }
 
+.landing {
+  min-height: 100%;
+  max-width: 1020px;
+  margin: 0 auto;
+  padding: 8vh 24px 60px;
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 56px;
+  align-items: start;
+}
+
+.pitch { max-width: 56ch; }
+.eyebrow {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.pitch h1 {
+  margin: 0 0 14px;
+  font-size: clamp(28px, 4vw, 40px);
+  line-height: 1.1;
+  letter-spacing: -.03em;
+}
+.lede { margin: 0 0 30px; font-size: 17px; line-height: 1.55; color: var(--muted); }
+
+.points { list-style: none; margin: 0 0 30px; padding: 0; display: grid; gap: 18px; }
+.points li {
+  padding-left: 16px;
+  border-left: 2px solid var(--line);
+  color: var(--muted);
+  line-height: 1.55;
+}
+.points strong { display: block; color: var(--text); font-weight: 620; margin-bottom: 2px; }
+
+.colophon { margin: 0; font-size: 13px; color: var(--muted); }
+.colophon a { color: var(--accent); }
+
 .signin-card {
-  width: min(380px, 100%);
-  padding: 30px 28px 26px;
+  position: sticky;
+  top: 8vh;
+  padding: 26px 24px 22px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 16px;
   box-shadow: var(--shadow);
 }
-.signin-card h1 { margin: 0 0 6px; font-size: 20px; letter-spacing: -.02em; }
-.signin-card p { margin: 0 0 20px; }
+.signin-card h2 { margin: 0 0 4px; font-size: 18px; letter-spacing: -.02em; }
+.signin-card p { margin: 0 0 18px; }
 .signin-card .field { margin-bottom: 14px; }
 .signin-card .primary { width: 100%; margin-top: 6px; }
-.signin-error {
-  margin: 14px 0 0 !important;
-  color: #c0392b;
-  font-size: 13px;
-}
+
+.signin-error { margin: 14px 0 0 !important; color: #c0392b; font-size: 13px; }
 @media (prefers-color-scheme: dark) { .signin-error { color: #ff8b76; } }
 .signin-hint {
   margin: 16px 0 0 !important;
@@ -82,6 +118,15 @@ button { cursor: pointer; }
   background: var(--surface-2);
   color: var(--muted);
   font-size: 13px;
+}
+
+@media (max-width: 860px) {
+  .landing {
+    grid-template-columns: 1fr;
+    gap: 34px;
+    padding: 40px 20px 50px;
+  }
+  .signin-card { position: static; order: -1; }   /* signing in comes first on a phone */
 }
 
 /* ---------- top bar ---------- */

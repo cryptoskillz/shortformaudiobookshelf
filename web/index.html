@@ -12,28 +12,73 @@
 <body>
 
 <div class="signin" id="signin" hidden>
-  <form class="signin-card" id="signin-form">
-    <h1>Shortform Audio Bookshelf</h1>
-    <p class="muted small">Sign in to reach your library.</p>
-    <label class="field">
-      <span>Username</span>
-      <input type="text" id="login-username" autocomplete="username" autocapitalize="none" required>
-    </label>
-    <label class="field">
-      <span>Password</span>
-      <input type="password" id="login-password" autocomplete="current-password" required>
-    </label>
-    <button class="primary" type="submit" id="login-submit">Sign in</button>
-    <p class="signin-error" id="login-error" hidden></p>
-    <p class="signin-error" id="signin-state" hidden>
-      The server cannot write to its config folder, so accounts will not persist.
-      Fix the folder's permissions, then restart the container.
-    </p>
-    <p class="signin-hint" id="signin-hint" hidden>
-      First run? Sign in with <strong>admin</strong> / <strong>admin</strong>, then
-      change the password.
-    </p>
-  </form>
+  <div class="landing">
+
+    <section class="pitch">
+      <p class="eyebrow">Open source · self hosted</p>
+      <h1>Shortform Audio Bookshelf</h1>
+      <p class="lede">
+        A player for short-form audiobooks — the twenty-minute summaries — running
+        on your own server, reading your own files. Nothing phones home, nothing
+        expires, and there is no subscription.
+      </p>
+
+      <ul class="points">
+        <li>
+          <strong>Your files, your machine.</strong>
+          Point it at a folder of Opus files. It reads the tags, works out which
+          files belong to which book, and plays them in any browser or phone on
+          your network.
+        </li>
+        <li>
+          <strong>Built for hundreds of short books.</strong>
+          Not chapters of one long novel — a shelf of single-file summaries, with
+          author and genre filters, search, and your place kept in every one.
+        </li>
+        <li>
+          <strong>Details filled in for you.</strong>
+          Descriptions, narrators and cover art from Audible, Apple Books and
+          Wikipedia when your files carry none — and only when the match is
+          confident.
+        </li>
+        <li>
+          <strong>Everyone gets their own shelf.</strong>
+          Accounts with separate resume positions, so nobody loses their place
+          because someone else pressed play.
+        </li>
+      </ul>
+
+      <p class="colophon">
+        Pure Python standard library — no database, no build step, one small
+        container. <a href="https://github.com/cryptoskillz/shortformaudiobookshelf"
+        target="_blank" rel="noopener">Source on GitHub</a>.
+      </p>
+    </section>
+
+    <form class="signin-card" id="signin-form">
+      <h2>Sign in</h2>
+      <p class="muted small">This shelf is private.</p>
+      <label class="field">
+        <span>Username</span>
+        <input type="text" id="login-username" autocomplete="username" autocapitalize="none" required>
+      </label>
+      <label class="field">
+        <span>Password</span>
+        <input type="password" id="login-password" autocomplete="current-password" required>
+      </label>
+      <button class="primary" type="submit" id="login-submit">Sign in</button>
+      <p class="signin-error" id="login-error" hidden></p>
+      <p class="signin-error" id="signin-state" hidden>
+        The server cannot write to its config folder, so accounts will not persist.
+        Fix the folder's permissions, then restart the container.
+      </p>
+      <p class="signin-hint" id="signin-hint" hidden>
+        First run? Sign in with <strong>admin</strong> / <strong>admin</strong>, then
+        change the password.
+      </p>
+    </form>
+
+  </div>
 </div>
 
 <div id="app">

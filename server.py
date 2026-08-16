@@ -104,6 +104,21 @@ SESSION_COOKIE = "sab_session"
 SESSION_DAYS = 30
 
 
+def is_private_client(address):
+    """Whether a request came from a local network rather than the internet.
+
+    Used to decide whether it is safe to show the first-run credentials. Behind
+    a tunnel or reverse proxy the peer is the proxy, so a public visitor never
+    sees them — which is the point.
+    """
+    try:
+        import ipaddress
+        ip = ipaddress.ip_address(address)
+        return ip.is_private or ip.is_loopback or ip.is_link_local
+    except ValueError:
+        return False
+
+
 def in_container():
     """Whether we are running inside a container.
 
@@ -1098,10 +1113,13 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["settings"]:
             return self._handle_get_settings()
         if parts == ["first-run"]:
-            # Public on purpose: it only says whether the shipped default still
-            # works, which is exactly what someone locked out needs to know.
+            # The default credentials are only offered to a client on the local
+            # network. Printing them on a publicly reachable sign-in page would
+            # hand the library to anyone who found the address.
+            local = is_private_client(self.client_address[0])
             return self._send_json({
-                "defaultPassword": self.server.users.using_default_password(),
+                "defaultPassword": (local
+                                    and self.server.users.using_default_password()),
                 "accountsConfigured": self.server.users.any(),
                 "stateWritable": getattr(self.server, "state_writable", True),
                 "stateProblem": getattr(self.server, "state_problem", ""),
@@ -2654,12 +2672,17 @@ def main(argv=None):
         print(f"      sudo chown -R {os.getuid()}:{os.getgid()} <your config folder>", file=sys.stderr)
         print("!" * 70 + "\n", file=sys.stderr)
 
-    for label, folder in (("library", values["library"]), ("output", values["output"])):
+    for label, folder in (("library", values["library"]),
+                          ("download", values["import_dir"]),
+                          ("output", values["output"])):
         if not folder:
             continue
-        ok, why = directory_writable(folder)
+        # A distinct name: reusing `why` here overwrote the state directory's
+        # reason, so the player reported another folder's problem as the
+        # config folder's, alongside a contradictory "writable: true".
+        ok, folder_problem = directory_writable(folder)
         if not ok and os.path.isdir(folder):
-            print(f"warning: the {label} folder {folder} is not writable ({why}). "
+            print(f"warning: the {label} folder {folder} is not writable ({folder_problem}). "
                   f"Uploads and organising will fail. "
                   f"Try: chown -R {os.getuid()}:{os.getgid()} {folder}", file=sys.stderr)
 

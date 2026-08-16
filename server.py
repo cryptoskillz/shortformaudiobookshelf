@@ -2410,6 +2410,14 @@ def main(argv=None):
     loaded = False
     if not (args.rescan or args.scan_only or args.organise) and not args.no_cache:
         loaded = lib.load_index(args.index)
+    # An index with nothing in it is worth no time at all to rebuild, and
+    # trusting it strands anyone who has just corrected a wrong mount: the
+    # library is full, the index says empty, and only a manual Rescan bridges
+    # the two.
+    if loaded and not lib.books and os.path.isdir(lib.root):
+        print("The saved index is empty — scanning in case the library has changed.")
+        loaded = False
+
     if loaded:
         print(f"Loaded {len(lib.books)} books from {args.index}")
         drift = lib.index_drift()

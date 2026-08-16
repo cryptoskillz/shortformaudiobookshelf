@@ -7,12 +7,15 @@
 #
 # Set these in the stack's Environment variables:
 #
-#   LIBRARY_PATH   /volume1/media/audiobooks-incoming   input, uploads land here
-#   MEDIA_PATH     /volume1/media/audiobooks            output, the tidy copy
-#   CONFIG_PATH    /volume1/docker/sab/config           index, covers, accounts
-#   HOST_PORT      7345                                 port on the NAS
-#   PUID / PGID    1000 / 1000                          `id -u`, `id -g`
+#   LIBRARY_PATH   input  — the messy folder, uploads land here
+#   MEDIA_PATH     output — the tidy Author/Title copy
+#   CONFIG_PATH    index, covers, accounts, resume positions
+#   HOST_PORT      port on the NAS (7345 by default)
+#   PUID / PGID    `id -u`, `id -g` for whoever owns your media
 #   TZ             Europe/London
+#
+# The paths are yours to choose; nothing in the app depends on them. Pick a
+# folder name that no other container already uses.
 #
 # The defaults below are only there so the stack starts without them; on a real
 # NAS set the three paths explicitly.

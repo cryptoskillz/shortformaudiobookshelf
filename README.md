@@ -44,7 +44,7 @@ Three, and the app neither knows nor cares that they live on a NAS:
 ```
 /volume1/media/audiobooks-incoming
 /volume1/media/audiobooks
-/volume1/docker/sab/config
+/volume1/docker/shortform-audio/config
 ```
 
 ### 2. Add the stack in Portainer
@@ -59,7 +59,7 @@ clone on the NAS.
 | --- | --- |
 | `LIBRARY_PATH` | `/volume1/media/audiobooks-incoming` |
 | `MEDIA_PATH` | `/volume1/media/audiobooks-shortform` |
-| `CONFIG_PATH` | `/volume1/docker/sab/config` |
+| `CONFIG_PATH` | `/volume1/docker/shortform-audio/config` |
 | `HOST_PORT` | `7345` |
 | `PUID` / `PGID` | whatever `id -u` and `id -g` report for the user that owns your media |
 | `TZ` | `Europe/London` |

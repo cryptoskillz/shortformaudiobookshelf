@@ -1,4 +1,4 @@
-# Shortlist Audio has no dependencies beyond the Python standard library, so
+# Shortform Audio Bookshelf has no dependencies beyond the Python standard library, so
 # the image is just Python plus five source files. Nothing to compile, nothing
 # to install, no wheels to pin.
 FROM python:3.13-alpine

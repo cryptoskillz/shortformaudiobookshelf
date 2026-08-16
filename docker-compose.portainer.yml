@@ -1,4 +1,4 @@
-# Shortlist Audio — paste-into-Portainer version. No image build, no registry.
+# Shortform Audio Bookshelf — paste-into-Portainer version. No image build, no registry.
 #
 # The app is pure Python standard library, so it runs on the stock python
 # image with the source mounted in. That means a Portainer stack can be

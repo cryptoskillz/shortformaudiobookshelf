@@ -1,4 +1,4 @@
-/* Shortlist Audio — browser player.
+/* Shortform Audio Bookshelf — browser player.
  *
  * A book is a list of tracks with known offsets, so the scrubber can span the
  * whole book rather than one chapter: seeking maps a book-wide position back to
@@ -31,7 +31,7 @@ const el = {
   nowTitle: $("now-title"), nowChapter: $("now-chapter"), nowCover: $("now-cover"),
   speed: $("speed"), sleep: $("sleep"), toast: $("toast"),
 
-  settingsOpen: $("settings-open"), settings: $("settings"), settingsSave: $("settings-save"),
+  whoami: $("whoami"), signout: $("signout"), settingsOpen: $("settings-open"), settings: $("settings"), settingsSave: $("settings-save"),
   settingsCancel: $("settings-cancel"), settingsStatus: $("settings-status"),
   settingsPaths: $("settings-paths"), authWarning: $("auth-warning"), authStatus: $("auth-status"),
   setLibrary: $("set-library"), setOutput: $("set-output"), setHost: $("set-host"), setPort: $("set-port"),
@@ -201,11 +201,12 @@ async function loadLibrary() {
   const data = await api("/api/library");
   state.books = data.books;
   state.progress = data.progress || {};
-  document.title = "Shortlist Audio";
+  document.title = "Shortform Audio Bookshelf";
   renderFilters();
   renderLibrary();
   try {
-    applyRole((await api("/api/users")).you);
+    const who = await api("/api/users");
+    applyRole(who.you, who.accountsConfigured);
   } catch {
     /* older server or not signed in yet; leave the UI as-is */
   }
@@ -1185,9 +1186,17 @@ el.verifyPassword.addEventListener("click", async (event) => {
 
 /** Hide everything a listener cannot do, so the UI matches what the server
  *  will actually allow rather than failing on click. */
-function applyRole(you) {
+function applyRole(you, accountsConfigured) {
   const admin = you.role === "admin";
   state.isAdmin = admin;
+
+  const signedIn = Boolean(you.username);
+  el.whoami.hidden = !signedIn;
+  el.signout.hidden = !signedIn;
+  if (signedIn) {
+    el.whoami.innerHTML =
+      `${escapeHtml(you.username)}<span class="role-tag">${escapeHtml(you.role)}</span>`;
+  }
   for (const control of [el.uploadOpen, el.rescan]) control.hidden = !admin;
   el.findMetadata.hidden = !admin;
   el.removeBook.hidden = !admin;
@@ -1201,7 +1210,7 @@ function applyRole(you) {
 
 async function loadUsers() {
   const data = await api("/api/users");
-  applyRole(data.you);
+  applyRole(data.you, data.accountsConfigured);
 
   el.authStatus.textContent = data.accountsConfigured
     ? `Signed in as ${data.you.username} (${data.you.role}).`
@@ -1233,10 +1242,16 @@ el.addUser.addEventListener("click", async (event) => {
     });
     const created = el.newUsername.value.trim();
     el.newUsername.value = el.newPassword.value = "";
+    // The very first account switches the server from open to requiring a
+    // login, so this page has no credentials yet. Reload and let the browser
+    // ask, rather than refreshing the list and getting a 401.
+    if (!state.hadAccounts) {
+      el.settingsStatus.textContent = `Added ${created}. Signing in…`;
+      setTimeout(() => location.reload(), 1200);
+      return;
+    }
     await loadUsers();
     el.settingsStatus.textContent = `Added ${created}.`;
-    // The first account turns authentication on, so this page must sign in.
-    if (!state.hadAccounts) setTimeout(() => location.reload(), 1200);
   } catch (error) {
     el.settingsStatus.textContent = error.message;
   }
@@ -1300,6 +1315,21 @@ el.changeOwn.addEventListener("click", async (event) => {
   } catch (error) {
     el.settingsStatus.textContent = error.message;
   }
+});
+
+/* Basic auth keeps no session to end, so signing out means getting the browser
+ * to throw away the credential it has cached: ask for a page that always
+ * refuses, then reload so it prompts again. */
+el.signout.addEventListener("click", async () => {
+  try {
+    await fetch("/api/logout", {
+      headers: { Authorization: "Basic " + btoa("signed-out:signed-out") },
+      cache: "no-store",
+    });
+  } catch {
+    /* the 401 is the point; a network error here changes nothing */
+  }
+  location.reload();
 });
 
 /* ------------------------------------------------------------------ upload */

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shortlist Audio — an audiobook server and player.
+"""Shortform Audio Bookshelf — an audiobook server and player.
 
 Scans a directory of Opus (and other) audio files, groups them into books,
 and serves them to a browser player over HTTP with byte-range streaming, so
@@ -170,6 +170,19 @@ class ProgressStore:
             self._data.get(user, {}).pop(book_id, None)
             snapshot = {k: dict(v) for k, v in self._data.items()}
         self._write(snapshot)
+
+    def rename_user(self, old, new):
+        """Move one bucket to another name, merging if the target exists."""
+        with self._lock:
+            moving = self._data.pop(old, None)
+            if not moving:
+                return 0
+            target = self._data.setdefault(new, {})
+            for book_id, entry in moving.items():
+                target.setdefault(book_id, entry)
+            snapshot = {k: dict(v) for k, v in self._data.items()}
+        self._write(snapshot)
+        return len(moving)
 
     def forget_user(self, user):
         with self._lock:
@@ -578,7 +591,7 @@ class OrganiseJob:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "ShortlistAudio/1.0"
+    server_version = "ShortformAudioBookshelf/1.0"
     protocol_version = "HTTP/1.1"
     _body_read = 0  # bytes of this request's body already consumed
     current_user = None
@@ -735,7 +748,7 @@ class Handler(BaseHTTPRequestHandler):
     def _challenge(self):
         body = b"Authentication required.\n"
         self.send_response(HTTPStatus.UNAUTHORIZED)
-        self.send_header("WWW-Authenticate", 'Basic realm="Shortlist Audio", charset="UTF-8"')
+        self.send_header("WWW-Authenticate", 'Basic realm="Shortform Audio Bookshelf", charset="UTF-8"')
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -848,6 +861,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_get_settings()
         if parts == ["users"]:
             return self._handle_users()
+        if parts == ["logout"]:
+            # Basic auth has no sign-out. The browser only forgets a cached
+            # credential when it is refused, so this endpoint always refuses.
+            return self._challenge()
         if parts == ["browse"]:
             return self._handle_browse(query)
         if parts == ["authors", "search"]:
@@ -956,7 +973,11 @@ class Handler(BaseHTTPRequestHandler):
     def _handle_get_settings(self):
         values = settings_module.load(self.server.settings_file)
         self._send_json({
-            "library": values["library"],
+            # Report the library actually loaded, not merely the saved setting:
+            # showing a stale default here would let Save switch libraries by
+            # accident when the server was started with a path argument.
+            "library": self.lib.root,
+            "savedLibrary": values["library"],
             "output": values["output"],
             "host": values["host"],
             "port": values["port"],
@@ -1924,7 +1945,7 @@ def local_ip():
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(description="Shortlist Audio — audiobook server and player")
+    parser = argparse.ArgumentParser(description="Shortform Audio Bookshelf — audiobook server and player")
     parser.add_argument("root", nargs="?", help="library directory (default: the saved setting)")
     parser.add_argument("--output", help="directory --organise writes the tidy copy into")
     parser.add_argument("--port", type=int)
@@ -2095,15 +2116,20 @@ def main(argv=None):
     # Accounts live in their own file. A login set before accounts existed is
     # adopted as the first admin so nobody is locked out by upgrading.
     user_store = users_module.UserStore(os.path.join(paths["dir"], "users.json"))
+    progress_store = ProgressStore(paths["progress"])
     if values.get("username") and values.get("password_hash") and not user_store.any():
         if user_store.adopt(values["username"], values["password_hash"]):
-            print(f"Existing login '{values['username']}' is now an admin account.")
+            # Positions saved before accounts existed sit in the anonymous
+            # bucket; they belong to the person who had the only login.
+            moved = progress_store.rename_user("", values["username"])
+            print(f"Existing login '{values['username']}' is now an admin account"
+                  + (f", with {moved} saved position(s)." if moved else "."))
 
     state = {}
     configure_server(
         httpd,
         library=lib,
-        progress=ProgressStore(paths["progress"]),
+        progress=progress_store,
         metadata=MetadataStore(os.path.join(paths["dir"], "metadata.json")),
         authors=AuthorStore(os.path.join(paths["dir"], "authors.json")),
         removed=RemovedStore(os.path.join(paths["dir"], "removed.json")),

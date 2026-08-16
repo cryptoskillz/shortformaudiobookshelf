@@ -147,6 +147,25 @@ main { padding: 24px 20px 40px; max-width: 1180px; margin: 0 auto; }
 .filter select:focus { outline: none; border-color: var(--accent); }
 .ghost.clear { padding: 5px 12px; font-size: 13px; }
 
+.whoami {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 22ch;
+}
+.whoami .role-tag {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-left: 5px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+#signout { padding: 5px 12px; font-size: 13px; }
+
 .muted { color: var(--muted); }
 .small { font-size: 13px; }
 .empty { color: var(--muted); text-align: center; padding: 60px 20px; }

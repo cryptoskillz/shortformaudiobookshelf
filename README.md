@@ -106,21 +106,42 @@ the settings file, which beats the environment, which beats the defaults.
 Everything else lives in `~/.shortlistaudio/` too: `index.json` (the last scan),
 `cache.json` (per-file metadata), `covers/` (art extracted from tags or fetched
 from a provider), `metadata.json` (looked-up book details), `authors.json`
-(author bios), `removed.json` (books you have hidden or deleted), and
-`progress.json` (resume points). Put that directory somewhere else with
+(author bios), `removed.json` (books you have hidden or deleted),
+`users.json` (accounts, `0600`), and `progress.json` (resume points, per account). Put that directory somewhere else with
 `--state-dir` or `$SHORTLIST_STATE_DIR` — which is how the container points it
 at a mounted `/config`.
 
-### Login
+### Accounts
+
+**⚙ → Accounts** manages who can do what. Two roles:
+
+| Role | Can |
+| --- | --- |
+| **listener** | browse and play, and keep their own place in every book |
+| **admin** | all of that, plus scan, add, remove, organise, look up details, change settings and manage accounts |
+
+With no accounts the server is open to anyone who can reach it and every
+request is treated as an admin — the same behaviour as before accounts existed,
+and the settings panel says so in a warning. Adding the first account turns
+authentication on.
+
+Resume positions are **per account**, so two people listening to the same book
+do not overwrite each other. Deleting an account deletes its saved positions.
+
+The UI hides what your role cannot do, and the server enforces it separately —
+a listener posting straight at the API gets a 403.
+
+Guards worth knowing: the last remaining admin cannot be demoted or deleted, so
+you cannot lock yourself out; changing your own password requires the current
+one, while an admin can reset anyone's; and account files are written `0600`
+with PBKDF2-SHA256 hashes.
+
+If you already had the older single login, it is adopted as the first admin on
+startup, and any resume positions saved before accounts existed move to it.
 
 ```bash
-python3 server.py --set-password
+python3 server.py --set-password     # still works; creates or updates an admin
 ```
-
-Prompts for a username and password and stores the password as a PBKDF2-SHA256
-hash — never in the clear — in a `0600` settings file. The player then asks for
-it in the browser's own login dialog, and every request is covered, including
-audio streaming.
 
 Be aware that HTTP Basic sends the password in cleartext on the wire. That is a
 reasonable lock on your own network. It is **not** enough to put this server on
@@ -242,7 +263,14 @@ by bitrate. So re-organising after re-ripping a book upgrades it in place:
 Wrote: 8 books · 0 copied · 1 upgraded · 14 already there · 1 kept (incoming was not better)
 ```
 
-Pass `--overwrite` to replace regardless. Organising into a directory inside
+Ticking **delete each original after its copy is verified** turns the copy into
+a move: the source is removed only once its copy exists at a matching size, and
+never for a file that was skipped — so a refused or failed copy can never lose
+the original. Files the scan set aside as duplicates are not copied, and so are
+not deleted either. The UI asks for confirmation before starting.
+
+Pass `--overwrite` to replace regardless, or `--delete-originals` on the command
+line for the same move behaviour. Organising into a directory inside
 your library is refused, since the scan would then find its own output.
 
 To get the playlists without duplicating the audio:
@@ -308,7 +336,8 @@ is, and one with no bio cannot be selected.
 ### Doing the whole library at once
 
 **⚙ → Book details → Look up missing details** works through every book that
-has no description yet, about a second each, in the background with a progress
+has no description yet — and fetches an author bio for each new author it meets
+along the way — at about a second each, in the background with a progress
 bar and a Stop button. Only a confident match is applied — the title and author
 have to line up — and anything doubtful is counted as skipped and left alone.
 
@@ -371,6 +400,11 @@ The **Download .m3u** button on each book page gives you that one.
 | `POST /api/metadata/fetch-all` | start the bulk lookup (`/status`, `/stop`) |
 | `POST /api/books/<id>/remove` | hide a book (`deleteFiles` + `confirm` to delete) |
 | `POST /api/books/<id>/restore` | un-hide a book whose files still exist |
+| `GET /api/users` | who you are, and the account list if you are an admin |
+| `POST /api/users` | create an account |
+| `POST /api/users/<name>/password` | set a password (own needs `current`) |
+| `POST /api/users/<name>/role` | change a role |
+| `POST /api/users/<name>/delete` | delete an account and its saved positions |
 | `POST /api/books/<id>/metadata` | apply a chosen match (`{"clear": true}` to remove) |
 | `GET /api/browse?path=` | sub-folders of one directory, for the picker |
 | `POST /api/upload?name=` | raw file body, saved into the library root |
@@ -402,5 +436,6 @@ The **Download .m3u** button on each book page gives you that one.
 | [`organise.py`](organise.py) | the tidy-copy tree, playlists, manifest |
 | [`metadata.py`](metadata.py) | Audible / Apple / Google lookup and match ranking |
 | [`settings.py`](settings.py) | settings file, password hashing |
+| [`users.py`](users.py) | accounts, roles and the lockout guards |
 | [`oggopus.py`](oggopus.py) | Ogg/Opus tag, duration and cover parsing |
 | [`web/`](web) | the player (plain HTML/CSS/JS, no build step) |

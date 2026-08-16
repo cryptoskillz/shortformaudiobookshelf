@@ -1,4 +1,4 @@
-# Shortlist Audio — builds the image from this directory.
+# Shortform Audio Bookshelf — builds the image from this directory.
 #
 # Use this one when you have the source on the machine running Docker
 # (docker compose up -d, or a Portainer stack pointing at a git repository).

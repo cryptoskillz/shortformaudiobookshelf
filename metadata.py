@@ -24,7 +24,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-USER_AGENT = "ShortlistAudio/1.0 (+personal audiobook player)"
+USER_AGENT = "ShortformAudioBookshelf/1.0 (+personal audiobook player)"
 TIMEOUT = 12
 PROVIDERS = ("audible", "itunes", "google")
 

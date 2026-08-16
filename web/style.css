@@ -75,6 +75,14 @@ button { cursor: pointer; }
   font-size: 13px;
 }
 @media (prefers-color-scheme: dark) { .signin-error { color: #ff8b76; } }
+.signin-hint {
+  margin: 16px 0 0 !important;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 13px;
+}
 
 /* ---------- top bar ---------- */
 

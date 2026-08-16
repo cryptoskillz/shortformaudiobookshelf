@@ -33,7 +33,8 @@ const el = {
 
   app: $("app"), signin: $("signin"), signinForm: $("signin-form"),
   loginUsername: $("login-username"), loginPassword: $("login-password"),
-  loginSubmit: $("login-submit"), loginError: $("login-error"),
+  loginSubmit: $("login-submit"), loginError: $("login-error"), signinHint: $("signin-hint"),
+  defaultPasswordWarning: $("default-password-warning"),
   menuToggle: $("menu-toggle"), userMenu: $("user-menu"), menuWho: $("menu-who"),
   signout: $("signout"), settingsOpen: $("settings-open"), settings: $("settings"), settingsSave: $("settings-save"),
   settingsCancel: $("settings-cancel"), settingsStatus: $("settings-status"),
@@ -1241,6 +1242,7 @@ async function loadUsers() {
     ? `Signed in as ${data.you.username} (${data.you.role}).`
     : "No accounts yet — the server is open to anyone on your network. Add one below.";
   el.authWarning.hidden = data.accountsConfigured;
+  el.defaultPasswordWarning.hidden = !data.defaultPassword;
 
   el.userList.innerHTML = data.users.map((user) => `
     <li>
@@ -1446,9 +1448,15 @@ window.addEventListener("resize", syncPlayerHeight);
 
 /* --------------------------------------------------------------- sign in */
 
-function showSignIn(message) {
+async function showSignIn(message) {
   el.signin.hidden = false;
   el.app.hidden = true;
+  try {
+    const state = await (await fetch("/api/first-run")).json();
+    el.signinHint.hidden = !state.defaultPassword;
+  } catch {
+    el.signinHint.hidden = true;
+  }
   el.loginError.hidden = !message;
   el.loginError.textContent = message || "";
   el.loginUsername.focus();

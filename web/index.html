@@ -25,6 +25,10 @@
     </label>
     <button class="primary" type="submit" id="login-submit">Sign in</button>
     <p class="signin-error" id="login-error" hidden></p>
+    <p class="signin-hint" id="signin-hint" hidden>
+      First run? Sign in with <strong>admin</strong> / <strong>admin</strong>, then
+      change the password.
+    </p>
   </form>
 </div>
 
@@ -59,6 +63,10 @@
     <p class="warn" id="auth-warning" hidden>
       No login is set — anyone who can reach this server on your network can listen,
       upload files and change these settings.
+    </p>
+    <p class="warn" id="default-password-warning" hidden>
+      <strong>The default password is still in use.</strong> Anyone who can reach this
+      server can sign in as <code>admin</code> / <code>admin</code>. Change it below.
     </p>
 
     <section>

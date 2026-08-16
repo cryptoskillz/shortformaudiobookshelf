@@ -74,11 +74,11 @@ compose file:
 `PUID`/`PGID` matter: get them wrong and uploads and Organise fail with
 permission errors, because the container will not own the files it writes.
 
-### 4. Deploy, then create your account
+### 4. Deploy, then sign in
 
-Open `http://<nas>:7345`. With no accounts the server is **open to anyone on
-your network** and the settings panel says so — go to **⚙ → Accounts** and make
-an admin straight away. Adding the first account turns sign-in on.
+Open `http://<nas>:7345` and sign in with **admin / admin**. Change that
+password immediately under **⚙ → Settings → Accounts**; the player warns you
+until you do.
 
 ### Updating
 
@@ -184,12 +184,21 @@ startup, and any resume positions saved before accounts existed move to it.
 python3 server.py --set-password     # still works; creates or updates an admin
 ```
 
-### There is no default password
+### First run: admin / admin
 
-Deliberately. A fresh install has **no accounts**, which means the server is
-open to anyone who can reach it and the settings panel says so in a warning.
-The first account you create becomes the admin. So on a new NAS deployment with
-an empty `/config`, you do not sign in — you open the player and create the
+A brand-new install (an empty state directory) seeds one account:
+
+```
+username: admin
+password: admin
+```
+
+The sign-in page says so while that password still works, and the startup log
+prints it. **Change it straight away** — until you do, the settings panel shows
+a warning and anyone who can reach the server can sign in. Changing it clears
+the warning; the default is never re-created once any account exists.
+
+Usernames are matched case-insensitively, so `admin` and `Admin` are the same
 account.
 
 ### Locked out

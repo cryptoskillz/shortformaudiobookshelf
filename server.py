@@ -1006,6 +1006,8 @@ class Handler(BaseHTTPRequestHandler):
         shell = [urllib.parse.unquote(p) for p in parsed.path.split("/") if p]
         if not shell or (len(shell) == 1 and shell[0] in ("index.html", "app.js", "style.css")):
             return self._serve_static(shell[0] if shell else "index.html")
+        if shell == ["api", "first-run"]:
+            return self._route_api(shell[1:], urllib.parse.parse_qs(parsed.query))
         if not self._authorised():
             return self._challenge()
         parts = [urllib.parse.unquote(p) for p in parsed.path.split("/") if p]
@@ -1036,6 +1038,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_library()
         if parts == ["settings"]:
             return self._handle_get_settings()
+        if parts == ["first-run"]:
+            # Public on purpose: it only says whether the shipped default still
+            # works, which is exactly what someone locked out needs to know.
+            return self._send_json({
+                "defaultPassword": self.server.users.using_default_password(),
+                "accountsConfigured": self.server.users.any(),
+            })
         if parts == ["users"]:
             return self._handle_users()
 
@@ -1310,6 +1319,7 @@ class Handler(BaseHTTPRequestHandler):
                     "role": (self.current_user or {}).get("role", ""),
                     "open": bool((self.current_user or {}).get("open"))},
             "accountsConfigured": store.any(),
+            "defaultPassword": store.using_default_password(),
             "users": store.list() if self.is_admin else [],
         })
 
@@ -1636,6 +1646,7 @@ class Handler(BaseHTTPRequestHandler):
                     "role": (self.current_user or {}).get("role", ""),
                     "open": bool((self.current_user or {}).get("open"))},
             "accountsConfigured": store.any(),
+            "defaultPassword": store.using_default_password(),
             "users": store.list() if self.is_admin else [],
         })
 
@@ -2422,6 +2433,16 @@ def main(argv=None):
     # adopted as the first admin so nobody is locked out by upgrading.
     user_store = users_module.UserStore(os.path.join(paths["dir"], "users.json"))
     progress_store = ProgressStore(paths["progress"])
+    if not user_store.any() and not (values.get("username") and values.get("password_hash")):
+        # A brand-new install: seed a default admin so there is always a way in.
+        try:
+            if user_store.seed_default():
+                print(f"Created the default admin account "
+                      f"'{users_module.DEFAULT_USERNAME}' / '{users_module.DEFAULT_PASSWORD}' "
+                      f"— change it in the player.")
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
     if values.get("username") and values.get("password_hash") and not user_store.any():
         if user_store.adopt(values["username"], values["password_hash"]):
             # Positions saved before accounts existed sit in the anonymous
@@ -2461,6 +2482,10 @@ def main(argv=None):
             print("  Accounts: " + ", ".join(f"{a['username']} ({a['role']})" for a in accounts))
         else:
             print("  Accounts: none — anyone on the network can listen and change things")
+        if server.users.using_default_password():
+            print(f"\n  !! Signing in with {users_module.DEFAULT_USERNAME} / "
+                  f"{users_module.DEFAULT_PASSWORD} still works. Change it in the\n"
+                  f"     player under the account menu, Settings, Accounts.")
         print("\nCtrl-C to stop.\n")
 
     banner(httpd)

@@ -28,11 +28,22 @@ ADMIN = "admin"
 LISTENER = "listener"
 ROLES = (ADMIN, LISTENER)
 
+# Seeded on a brand-new install so there is always a way in, the way most
+# self-hosted apps do it. Anything still using it is reported as insecure until
+# the password is changed.
+DEFAULT_USERNAME = "admin"
+DEFAULT_PASSWORD = "admin"
+
 
 def clean_username(raw):
-    """Usernames are matched exactly and used as keys, so keep them plain."""
+    """Normalise a username into its key.
+
+    Lower-cased on purpose: signing in as "Chris" when the account was created
+    as "chris" is a needless way to be locked out, and there is no reason to
+    allow two accounts that differ only in case.
+    """
     name = " ".join(str(raw or "").split())
-    return name[:64]
+    return name[:64].lower()
 
 
 class UserStore:
@@ -141,6 +152,28 @@ class UserStore:
             snapshot = dict(self._data)
         self._write(snapshot)
 
+    def seed_default(self):
+        """Create the default admin, but only on a completely empty install."""
+        with self._lock:
+            if self._data:
+                return False
+            self._data[DEFAULT_USERNAME] = {
+                "password_hash": settings_module.hash_password(DEFAULT_PASSWORD),
+                "role": ADMIN,
+                "createdAt": time.time(),
+            }
+            snapshot = dict(self._data)
+        self._write(snapshot)
+        return True
+
+    def using_default_password(self):
+        """True while the seeded account still has its shipped password."""
+        entry = self.get(DEFAULT_USERNAME)
+        if not entry:
+            return False
+        return settings_module.verify_password(DEFAULT_PASSWORD,
+                                               entry.get("password_hash", ""))
+
     def adopt(self, username, password_hash, role=ADMIN):
         """Take over an existing hash — used to migrate the old single login."""
         name = clean_username(username)
@@ -156,6 +189,13 @@ class UserStore:
         return True
 
     def _write(self, snapshot):
+        """Persist, or raise.
+
+        Accounts are the one thing that must never fail quietly: swallowing the
+        error here means the player says "account added" and then the password
+        does not work, because nothing ever reached disk. The usual cause is a
+        state directory the container cannot write to (wrong PUID/PGID).
+        """
         try:
             os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
             temp = f"{self.path}.{os.getpid()}.tmp"
@@ -163,5 +203,9 @@ class UserStore:
                 json.dump(snapshot, fh, indent=1, ensure_ascii=False)
             os.replace(temp, self.path)
             os.chmod(self.path, 0o600)          # it holds credential hashes
-        except OSError:
-            pass
+        except OSError as exc:
+            raise ValueError(
+                f"could not save accounts to {self.path}: {exc.strerror or exc}. "
+                "Check the folder exists and the server can write to it "
+                "(in Docker, that usually means PUID/PGID)."
+            ) from exc

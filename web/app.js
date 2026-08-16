@@ -1008,6 +1008,12 @@ async function runOrganise(dryRun) {
     el.organiseResult.className = "bad";
     return;
   }
+  // Moving deletes your originals, so ask in as many words before starting.
+  if (!dryRun && el.organiseMove.checked &&
+      !confirm("This deletes each original file after its copy is verified.\n\n" +
+               "Your library folder will end up empty. Continue?")) {
+    return;
+  }
   el.organisePreview.disabled = el.organiseRun.disabled = true;
   el.organiseResult.className = "";
   el.organiseResult.textContent = dryRun ? "Working out the plan…" : "Starting…";

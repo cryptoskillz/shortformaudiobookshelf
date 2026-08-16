@@ -1091,8 +1091,9 @@ class Handler(BaseHTTPRequestHandler):
         """
         store = self.server.users
         body = self._read_body()
+        # parts arrives without the leading "api": ["users"] or ["users", name, action]
         action = parts[-1] if len(parts) > 2 else "create"
-        target = users_module.clean_username(parts[2]) if len(parts) > 2 else ""
+        target = users_module.clean_username(parts[1]) if len(parts) > 2 else ""
 
         try:
             if action == "create":
@@ -1381,8 +1382,9 @@ class Handler(BaseHTTPRequestHandler):
         """
         store = self.server.users
         body = self._read_body()
+        # parts arrives without the leading "api": ["users"] or ["users", name, action]
         action = parts[-1] if len(parts) > 2 else "create"
-        target = users_module.clean_username(parts[2]) if len(parts) > 2 else ""
+        target = users_module.clean_username(parts[1]) if len(parts) > 2 else ""
 
         try:
             if action == "create":

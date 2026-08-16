@@ -1,4 +1,4 @@
-# Shortlist Audio
+# Shortform Audio Bookshelf
 
 An audiobook server and player for a directory of Opus files. It scans the
 directory, works out which files belong to which book, keeps the result in a

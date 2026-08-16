@@ -49,23 +49,16 @@ Three, and the app neither knows nor cares that they live on a NAS:
 
 ### 2. Add the stack in Portainer
 
-**Stacks → Add stack → Repository**
-
-| Field | Value |
-| --- | --- |
-| Repository URL | `https://github.com/cryptoskillz/shortformaudiobookshelf` |
-| Repository reference | `refs/heads/main` |
-| Compose path | `docker-compose.yml` |
+**Stacks → Add stack → Web editor**, and paste `docker-compose.portainer.yml`
+from this repo. It pulls a prebuilt image, so there is nothing to build or
+clone on the NAS.
 
 ### 3. Set the environment variables
-
-In the stack's **Environment variables** box, so you never have to edit the
-compose file:
 
 | Name | Example |
 | --- | --- |
 | `LIBRARY_PATH` | `/volume1/media/audiobooks-incoming` |
-| `MEDIA_PATH` | `/volume1/media/audiobooks` |
+| `MEDIA_PATH` | `/volume1/media/audiobooks-shortform` |
 | `CONFIG_PATH` | `/volume1/docker/sab/config` |
 | `HOST_PORT` | `7345` |
 | `PUID` / `PGID` | whatever `id -u` and `id -g` report for the user that owns your media |
@@ -82,18 +75,16 @@ until you do.
 
 ### Updating
 
-Portainer → the stack → **Pull and redeploy**. It fetches the latest commit and
-rebuilds. Nothing in `/config` is touched, so your accounts, index and saved
-places survive.
+**Re-pull image and redeploy**, the same as any other app. A push to `main`
+rebuilds `ghcr.io/cryptoskillz/shortformaudiobookshelf:latest` through GitHub
+Actions, and Portainer pulls it. Nothing in `/config` is touched, so accounts,
+index and saved places survive.
 
-### If building on the NAS is not an option
+### Building it yourself instead
 
-`docker-compose.portainer.yml` runs the stock `python:3.13-alpine` image with
-the source mounted in — no build at all, because the app is pure standard
-library. Clone the repo onto the NAS, paste that file into Portainer's editor,
-and set `APP_PATH` to the clone. Updating is `git pull` plus a restart.
-
-### From the command line
+`docker-compose.yml` builds from source rather than pulling. Use it with a
+Portainer **Repository** stack (point it at this repo, compose path
+`docker-compose.yml`), or locally:
 
 ```bash
 git clone https://github.com/cryptoskillz/shortformaudiobookshelf.git

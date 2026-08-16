@@ -1,47 +1,34 @@
-# Shortform Audio Bookshelf — no-build variant.
+# Shortform Audio Bookshelf — paste-into-Portainer stack.
 #
-# Use docker-compose.yml instead if you can: a Portainer Repository stack
-# pointed at the GitHub repo builds itself and updates on redeploy.
+# This pulls a prebuilt image from GitHub's registry, so it behaves like any
+# other self-hosted app: "Re-pull image and redeploy" in Portainer fetches the
+# new version. Nothing to clone, nothing to build, nothing to keep up to date
+# on the NAS by hand.
 #
-# This file is the fallback for when building on the NAS is not an option —
-# it runs the stock python image with the source mounted in. The app is pure
-# Python standard library, so nothing needs compiling.
-#
-#   1. Put the source on the NAS, e.g. /volume1/docker/sab/app
-#        git clone https://github.com/cryptoskillz/shortformaudiobookshelf.git \
-#          /volume1/docker/sab/app
-#   2. Paste this into Portainer's stack editor.
-#   3. Set the environment variables below in Portainer.
-#
-# Updating later is `git pull` in that folder, then restart the stack.
+# Paste this into Portainer's stack editor and set the variables below.
 
 services:
   shortform-audio-bookshelf:
-    image: python:3.13-alpine
+    image: ghcr.io/cryptoskillz/shortformaudiobookshelf:latest
     container_name: shortform-audio-bookshelf
     restart: unless-stopped
-    working_dir: /app
-    command: python3 server.py
 
+    # Match the user that owns your media, or uploads and Organise will fail
+    # with permission errors: `id -u` and `id -g` on the NAS.
     user: "${PUID:-1000}:${PGID:-1000}"
 
     ports:
       - "${HOST_PORT:-7345}:7345"
 
     volumes:
-      # The source, read-only — the container never writes here.
-      - ${APP_PATH:-/volume1/docker/sab/app}:/app:ro
+      # INPUT — the messy folder. Uploads land here, scanning reads it.
       - ${LIBRARY_PATH:-/volume1/media/audiobooks-incoming}:/library
-      - ${MEDIA_PATH:-/volume1/media/audiobooks}:/media
+      # OUTPUT — the tidy Author/Title copy that Organise writes.
+      - ${MEDIA_PATH:-/volume1/media/audiobooks-shortform}:/media
+      # STATE — index, covers, accounts, resume positions. Back this one up.
       - ${CONFIG_PATH:-/volume1/docker/sab/config}:/config
 
     environment:
-      - SHORTLIST_LIBRARY=/library
-      - SHORTLIST_OUTPUT=/media
-      - SHORTLIST_STATE_DIR=/config
-      - SHORTLIST_HOST=0.0.0.0
-      - SHORTLIST_PORT=7345
-      - PYTHONUNBUFFERED=1
       - TZ=${TZ:-Europe/London}
 
     healthcheck:

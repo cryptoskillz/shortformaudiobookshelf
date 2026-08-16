@@ -1143,13 +1143,13 @@ el.importRun.addEventListener("click", (e) => { e.preventDefault(); runImport(fa
 async function runOrganise(dryRun) {
   const output = el.setOutput.value.trim();
   if (!output) {
-    el.organiseResult.textContent = "Set an output folder first.";
+    el.organiseResult.textContent = "Set an export folder first.";
     el.organiseResult.className = "bad";
     return;
   }
   // Moving deletes your originals, so ask in as many words before starting.
   if (!dryRun && el.organiseMove.checked &&
-      !confirm("This deletes each original file after its copy is verified.\n\n" +
+      !confirm("This deletes each library file after its copy is verified.\n\n" +
                "Your library folder will end up empty. Continue?")) {
     return;
   }
@@ -1202,7 +1202,7 @@ async function runOrganise(dryRun) {
         el.organiseResult.className = "bad";
       } else {
         el.organiseResult.textContent =
-          (dryRun ? "Preview — nothing written. " : "Done. ") + (status.summary || "");
+          (dryRun ? "Preview — nothing written. " : "Exported. ") + (status.summary || "");
         el.organiseResult.className = "ok";
       }
       break;

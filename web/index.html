@@ -125,35 +125,24 @@
 
     <section>
       <h3>Folders</h3>
+      <p class="flow">
+        <span>Downloads</span><em>Import</em><span class="strong">Library</span><em>Export</em><span>Other apps</span>
+      </p>
       <p class="muted small" id="container-note" hidden>
         Running in a container, so these are paths <em>inside</em> it. Your NAS folders
         are mapped onto them by the stack's <code>volumes:</code> — change those, not
         these. Typing a host path here would point at nothing.
       </p>
-      <div class="field">
-        <span>Library folder</span>
-        <div class="with-button">
-          <input type="text" id="set-library" spellcheck="false" autocomplete="off">
-          <button class="ghost" data-browse="set-library">Browse…</button>
-        </div>
-        <small>Scanned for audiobooks. Uploads are saved straight into it.</small>
-        <small class="bad" id="library-writable" hidden></small>
-      </div>
-      <div class="field">
-        <span>Download folder <span class="muted">(import source)</span></span>
+
+      <div class="stage">
+        <h4>1 · Downloads <span class="muted">where new files arrive</span></h4>
         <div class="with-button">
           <input type="text" id="set-import" spellcheck="false" autocomplete="off" placeholder="(not set)">
           <button class="ghost" data-browse="set-import">Browse…</button>
         </div>
-        <small>New files arrive here. <strong>Import</strong> moves them into the library
-          below; nothing is ever played from here.</small>
-      </div>
-
-      <div class="organise-box">
         <p class="muted small">
-          <strong>Import</strong> reads the download folder and files each book into the
-          library as <code>Author/Title</code>, then rescans. Tick the box to empty the
-          download folder as it goes.
+          <strong>Import</strong> files each book into the library as
+          <code>Author/Title</code> and rescans. Nothing is ever played from here.
         </p>
         <label class="checkbox">
           <input type="checkbox" id="import-move">
@@ -167,25 +156,33 @@
         <small id="import-result"></small>
       </div>
 
-      <div class="field">
-        <span>Organised output folder <span class="muted">(optional export)</span></span>
+      <div class="stage current">
+        <h4>2 · Library <span class="muted">what you listen to</span></h4>
         <div class="with-button">
-          <input type="text" id="set-output" spellcheck="false" autocomplete="off" placeholder="(not set)">
-          <button class="ghost" data-browse="set-output">Browse…</button>
+          <input type="text" id="set-library" spellcheck="false" autocomplete="off">
+          <button class="ghost" data-browse="set-library">Browse…</button>
         </div>
-        <small>A tidy <em>copy</em> is written here when you organise. Must be outside the library.</small>
-        <small class="bad" id="output-writable" hidden></small>
+        <p class="muted small">
+          Scanned, served and played. <strong>Add books</strong> uploads land straight
+          in here, already playable.
+        </p>
+        <small class="bad" id="library-writable" hidden></small>
       </div>
 
-      <div class="organise-box">
+      <div class="stage">
+        <h4>3 · Export <span class="muted">optional, for other apps</span></h4>
+        <div class="with-button">
+          <input type="text" id="set-output" spellcheck="false" autocomplete="off" placeholder="(not set — most setups do not need this)">
+          <button class="ghost" data-browse="set-output">Browse…</button>
+        </div>
         <p class="muted small">
-          Setting the folder only records where. <strong>Organise</strong> makes the copy:
-          <code>Author/Title/01 - Chapter.opus</code> with a playlist, cover and
-          <code>book.json</code> per book. Your originals are never moved or changed.
+          A second copy for something else to read — Audiobookshelf, say. Your library
+          is already organised, so this is only worth it if another app needs its own
+          folder. Re-run it after importing and it copies just the new books.
         </p>
         <label class="checkbox">
           <input type="checkbox" id="organise-playlists">
-          <span>Playlists only — write .m3u files pointing at the originals, copy no audio</span>
+          <span>Playlists only — write .m3u files pointing at the library, copy no audio</span>
         </label>
         <label class="checkbox">
           <input type="checkbox" id="organise-move">
@@ -193,10 +190,11 @@
         </label>
         <div class="actions">
           <button class="ghost" id="organise-preview">Preview</button>
-          <button class="ghost" id="organise-run">Organise now</button>
+          <button class="ghost" id="organise-run">Export now</button>
         </div>
         <div class="progress" id="organise-progress" hidden><span></span></div>
         <small id="organise-result"></small>
+        <small class="bad" id="output-writable" hidden></small>
       </div>
     </section>
 

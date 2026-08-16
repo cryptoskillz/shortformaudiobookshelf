@@ -310,9 +310,9 @@ that root, and a directory key applies to everything beneath it:
 
 Press **Rescan** to pick the file up.
 
-## Organising
+## Exporting for other apps
 
-Setting the output folder only records *where*. Organising is a separate
+Setting the export folder only records *where*. Exporting is a separate
 action, and **Rescan does not do it** — that only re-reads the library. In the
 player, open **⚙ → Folders** and use **Preview** (shows the plan, writes
 nothing) or **Organise now**. The copy runs on the server with a progress bar,

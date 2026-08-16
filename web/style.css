@@ -578,6 +578,52 @@ small.ok { color: var(--accent); }
 small.bad { color: #c0392b; }
 @media (prefers-color-scheme: dark) { small.bad { color: #ff8b76; } }
 
+/* The folder settings read as a pipeline: downloads in, library in the middle,
+   an optional export out. */
+.flow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 18px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.flow span {
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+}
+.flow span.strong { color: var(--text); font-weight: 620; border-color: var(--muted); }
+.flow em {
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.flow em::before { content: "→ "; color: var(--muted); }
+
+.stage {
+  padding: 16px 18px;
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+}
+.stage.current { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--bg)); }
+.stage h4 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 620;
+  letter-spacing: -.01em;
+}
+.stage h4 .muted { font-weight: 400; font-size: 12.5px; margin-left: 4px; }
+.stage p { margin: 10px 0; }
+.stage .checkbox { margin: 8px 0; }
+.stage .actions { margin-top: 12px; }
+
 .organise-box {
   margin-top: 16px;
   padding: 14px 16px;

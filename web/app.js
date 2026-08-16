@@ -1013,11 +1013,16 @@ async function pollFetchAll() {
         `${Math.round((status.done / status.total) * 100)}%`;
     }
     const minutes = Math.ceil((status.etaSeconds || 0) / 60);
+    const trouble = status.failed
+      ? ` · ${status.failed} failed${status.lastError ? ` (${status.lastError})` : ""}`
+      : "";
     el.fetchResult.textContent = status.running
-      ? `${status.done} of ${status.total} · ${status.applied} added, ${status.skipped} skipped` +
-        (minutes ? ` · about ${minutes} min left` : "")
+      ? (status.backingOff ? "Rate limited — waiting a minute before carrying on. " : "") +
+        `${status.done} of ${status.total} · ${status.applied} added, ${status.skipped} skipped` +
+        (minutes ? ` · about ${minutes} min left` : "") + trouble
       : `${status.stopped ? "Stopped" : "Finished"} — ${status.applied} added, ` +
-        `${status.skipped} skipped, ${status.failed} failed`;
+        `${status.skipped} skipped, ${status.failed} failed` +
+        (status.lastError ? ` · last error: ${status.lastError}` : "");
     if (!status.running) {
       el.fetchStop.hidden = true;
       el.fetchAll.disabled = false;

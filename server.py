@@ -625,7 +625,7 @@ class MetadataJob:
     def _idle():
         return {"running": False, "done": 0, "total": 0, "current": "", "applied": 0,
                 "skipped": 0, "failed": 0, "bios": 0, "stopped": False, "error": None,
-                "etaSeconds": 0, "recent": []}
+                "lastError": "", "backingOff": False, "etaSeconds": 0, "recent": []}
 
     def snapshot(self):
         with self._lock:
@@ -664,12 +664,31 @@ class MetadataJob:
                 self._note(done=index, current=book["title"],
                            etaSeconds=int((len(books) - index) * (self.DELAY + 0.8)))
                 try:
-                    candidates, _ = metadata_module.search(
+                    candidates, errors = metadata_module.search(
                         book["title"], book["author"], providers=providers, limit=3
                     )
-                except Exception:
+                except Exception as exc:
                     with self._lock:
                         self._state["failed"] += 1
+                        self._state["lastError"] = str(exc)
+                    continue
+
+                # A provider that refused is not the same as a book with no
+                # good match, and counting both as "skipped" hides a run that
+                # has quietly stopped working.
+                if errors and not candidates:
+                    message = "; ".join(f"{name}: {why}" for name, why in errors.items())
+                    with self._lock:
+                        self._state["failed"] += 1
+                        self._state["lastError"] = message
+                    if any("rate limited" in why for why in errors.values()):
+                        with self._lock:
+                            self._state["backingOff"] = True
+                        # Backing off is the only polite response, and it beats
+                        # burning through the rest of the library getting 429s.
+                        self._stop.wait(60)
+                        with self._lock:
+                            self._state["backingOff"] = False
                     continue
 
                 best = candidates[0] if candidates else None

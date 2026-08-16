@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Shortlist Audio</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🎧</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="back" id="back" hidden aria-label="Back to library">←</button>
+  <h1 id="heading"><button class="home" id="home">Shortlist Audio</button><span class="crumb" id="crumb"></span></h1>
+  <input type="search" id="search" placeholder="Search books, authors…" aria-label="Search library" autocomplete="off">
+  <button class="ghost" id="upload-open" title="Add audio files to the library">Add books</button>
+  <button class="ghost" id="rescan" title="Rescan the library directory">Rescan</button>
+  <button class="ghost" id="settings-open" title="Settings" aria-label="Settings">⚙</button>
+</header>
+
+<input type="file" id="file-input" multiple accept=".opus,.ogg,.oga,.mp3,.m4a,.m4b,.flac,.wav,.aac,audio/*" hidden>
+
+<dialog id="settings">
+  <form method="dialog" class="dialog-head">
+    <h2>Settings</h2>
+    <button class="ghost" value="close" aria-label="Close">✕</button>
+  </form>
+
+  <div class="dialog-body">
+    <p class="warn" id="auth-warning" hidden>
+      No login is set — anyone who can reach this server on your network can listen,
+      upload files and change these settings.
+    </p>
+
+    <section>
+      <h3>Folders</h3>
+      <div class="field">
+        <span>Library folder</span>
+        <div class="with-button">
+          <input type="text" id="set-library" spellcheck="false" autocomplete="off">
+          <button class="ghost" data-browse="set-library">Browse…</button>
+        </div>
+        <small>Scanned for audiobooks. Uploads are saved straight into it.</small>
+      </div>
+      <div class="field">
+        <span>Organised output folder</span>
+        <div class="with-button">
+          <input type="text" id="set-output" spellcheck="false" autocomplete="off" placeholder="(not set)">
+          <button class="ghost" data-browse="set-output">Browse…</button>
+        </div>
+        <small>A tidy <em>copy</em> is written here when you organise. Must be outside the library.</small>
+      </div>
+
+      <div class="organise-box">
+        <p class="muted small">
+          Setting the folder only records where. <strong>Organise</strong> makes the copy:
+          <code>Author/Title/01 - Chapter.opus</code> with a playlist, cover and
+          <code>book.json</code> per book. Your originals are never moved or changed.
+        </p>
+        <label class="checkbox">
+          <input type="checkbox" id="organise-playlists">
+          <span>Playlists only — write .m3u files pointing at the originals, copy no audio</span>
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" id="organise-move">
+          <span><strong>Delete each original after its copy is verified</strong> (a move, not a copy)</span>
+        </label>
+        <div class="actions">
+          <button class="ghost" id="organise-preview">Preview</button>
+          <button class="ghost" id="organise-run">Organise now</button>
+        </div>
+        <div class="progress" id="organise-progress" hidden><span></span></div>
+        <small id="organise-result"></small>
+      </div>
+    </section>
+
+    <section>
+      <h3>Book details</h3>
+      <div class="organise-box">
+        <p class="muted small">
+          Look up descriptions, narrators and covers for every book that has none,
+          from Audible and Apple Books, plus an author bio from Wikipedia or
+          Open Library for each new author it meets. Roughly a second per book, so a large
+          library takes a while — it runs in the background and you can stop it.
+          Only confident matches are applied; anything doubtful is skipped.
+        </p>
+        <div class="actions">
+          <button class="ghost" id="fetch-all">Look up missing details</button>
+          <button class="ghost" id="fetch-stop" hidden>Stop</button>
+        </div>
+        <div class="progress" id="fetch-progress" hidden><span></span></div>
+        <small id="fetch-result"></small>
+      </div>
+    </section>
+
+    <section>
+      <h3>Network</h3>
+      <div class="field-row">
+        <label class="field">
+          <span>Host</span>
+          <input type="text" id="set-host" spellcheck="false" autocomplete="off">
+        </label>
+        <label class="field narrow">
+          <span>Port</span>
+          <input type="number" id="set-port" min="1" max="65535">
+        </label>
+      </div>
+      <small class="muted">Saving moves the server to the new address straight away — no
+        restart. If the port is already in use, nothing changes and you stay where you are.</small>
+    </section>
+
+    <section id="accounts-section">
+      <h3>Accounts</h3>
+      <p class="muted small" id="auth-status"></p>
+      <ul class="users" id="user-list"></ul>
+
+      <div class="organise-box" id="add-user-box">
+        <div class="field-row">
+          <label class="field">
+            <span>New account</span>
+            <input type="text" id="new-username" autocomplete="off" placeholder="username">
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <input type="password" id="new-password" autocomplete="new-password">
+          </label>
+          <label class="field narrow">
+            <span>Role</span>
+            <select id="new-role">
+              <option value="listener">Listener</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+        </div>
+        <div class="actions">
+          <button class="ghost" id="add-user">Add account</button>
+        </div>
+        <small class="muted">Listeners can browse and play, and keep their own place in
+          each book. Admins can also scan, add, remove and look up details.</small>
+      </div>
+
+      <div class="organise-box">
+        <div class="field-row">
+          <label class="field" id="own-current-field">
+            <span>Your current password</span>
+            <input type="password" id="own-current" autocomplete="current-password">
+          </label>
+          <label class="field">
+            <span>New password</span>
+            <input type="password" id="own-password" autocomplete="new-password">
+          </label>
+          <label class="field">
+            <span>Confirm</span>
+            <input type="password" id="own-confirm" autocomplete="new-password">
+          </label>
+        </div>
+        <div class="actions">
+          <button class="ghost" id="change-own">Change my password</button>
+          <button class="ghost" id="verify-password">Check current</button>
+        </div>
+        <small id="verify-result"></small>
+        <small id="match-result"></small>
+      </div>
+
+      <small class="muted">Stored as PBKDF2 hashes. Passwords still cross your network
+        in the clear, so treat this as a lock for home use, not the internet.</small>
+    </section>
+
+    <p class="muted small" id="settings-paths"></p>
+  </div>
+
+  <div class="dialog-foot">
+    <span class="muted small" id="settings-status"></span>
+    <button class="ghost" id="settings-cancel">Close</button>
+    <button class="primary" id="settings-save">Save folders &amp; network</button>
+  </div>
+</dialog>
+
+<dialog id="metadata">
+  <form method="dialog" class="dialog-head">
+    <h2>Find book details</h2>
+    <button class="ghost" value="close" aria-label="Close">✕</button>
+  </form>
+  <div class="dialog-body">
+    <p class="muted small">
+      Your files carry only title, author and genre, so descriptions and narrators
+      come from Audible, Apple Books or Google Books. Nothing is applied until you
+      pick one, and your audio files are never modified.
+    </p>
+    <div class="field-row">
+      <label class="field">
+        <span>Title</span>
+        <input type="text" id="meta-title" spellcheck="false" autocomplete="off">
+      </label>
+      <label class="field">
+        <span>Author</span>
+        <input type="text" id="meta-author" spellcheck="false" autocomplete="off">
+      </label>
+    </div>
+    <div class="sources">
+      <label class="checkbox"><input type="checkbox" id="src-audible" checked><span>Audible</span></label>
+      <label class="checkbox"><input type="checkbox" id="src-itunes" checked><span>Apple Books</span></label>
+      <label class="checkbox"><input type="checkbox" id="src-google"><span>Google Books</span></label>
+      <button class="ghost" id="meta-search">Search</button>
+    </div>
+    <p class="muted small" id="meta-note"></p>
+    <ul class="matches" id="meta-results"></ul>
+
+    <section class="author-section">
+      <h3>About the author</h3>
+      <div class="sources">
+        <span class="muted small" id="author-current"></span>
+        <button class="ghost" id="author-search">Find author bio</button>
+      </div>
+      <p class="muted small" id="author-note"></p>
+      <ul class="matches" id="author-results"></ul>
+    </section>
+  </div>
+  <div class="dialog-foot">
+    <span class="muted small" id="meta-status"></span>
+    <button class="ghost" id="meta-clear" hidden>Remove details</button>
+    <button class="ghost" id="meta-close">Close</button>
+  </div>
+</dialog>
+
+<dialog id="remove">
+  <form method="dialog" class="dialog-head">
+    <h2>Remove book</h2>
+    <button class="ghost" value="close" aria-label="Close">✕</button>
+  </form>
+  <div class="dialog-body">
+    <p id="remove-what"></p>
+    <label class="checkbox">
+      <input type="checkbox" id="remove-files">
+      <span><strong>Also delete the audio files from disk</strong></span>
+    </label>
+    <p class="warn" id="remove-warning" hidden>
+      This permanently deletes the files listed below. It cannot be undone, and
+      there is no trash to recover them from.
+    </p>
+    <ul class="folders" id="remove-list"></ul>
+  </div>
+  <div class="dialog-foot">
+    <span class="muted small" id="remove-status"></span>
+    <button class="ghost" id="remove-cancel">Cancel</button>
+    <button class="primary danger" id="remove-confirm">Remove from library</button>
+  </div>
+</dialog>
+
+<dialog id="picker">
+  <form method="dialog" class="dialog-head">
+    <h2 id="picker-title">Choose a folder</h2>
+    <button class="ghost" value="close" aria-label="Close">✕</button>
+  </form>
+  <div class="dialog-body">
+    <div class="picker-bar">
+      <button class="ghost" id="picker-up" title="Up one level">↑</button>
+      <input type="text" id="picker-path" spellcheck="false" autocomplete="off" aria-label="Current folder">
+      <button class="ghost" id="picker-go">Go</button>
+    </div>
+    <div class="shortcuts" id="picker-shortcuts"></div>
+    <ul class="folders" id="picker-list"></ul>
+    <p class="muted small" id="picker-info"></p>
+  </div>
+  <div class="dialog-foot">
+    <span class="muted small" id="picker-status"></span>
+    <button class="ghost" id="picker-cancel">Cancel</button>
+    <button class="primary" id="picker-choose">Use this folder</button>
+  </div>
+</dialog>
+
+<dialog id="upload">
+  <form method="dialog" class="dialog-head">
+    <h2>Add books</h2>
+    <button class="ghost" value="close" aria-label="Close">✕</button>
+  </form>
+  <div class="dialog-body">
+    <div class="dropzone" id="dropzone">
+      <strong>Drop audio files here</strong>
+      <span class="muted small">or</span>
+      <button class="ghost" id="choose-files">Choose files…</button>
+      <small class="muted" id="upload-target"></small>
+    </div>
+    <ul class="uploads" id="upload-list"></ul>
+  </div>
+  <div class="dialog-foot">
+    <span class="muted small" id="upload-status"></span>
+    <button class="ghost" id="upload-close">Close</button>
+  </div>
+</dialog>
+
+<main id="main">
+  <section id="library-view">
+    <div class="filters">
+      <label class="filter">
+        <span>Author</span>
+        <select id="filter-author" aria-label="Filter by author"><option value="">All</option></select>
+      </label>
+      <label class="filter">
+        <span>Genre</span>
+        <select id="filter-genre" aria-label="Filter by genre"><option value="">All</option></select>
+      </label>
+      <label class="filter">
+        <span>Show</span>
+        <select id="filter-state" aria-label="Filter by listening state">
+          <option value="">Everything</option>
+          <option value="inprogress">In progress</option>
+          <option value="unstarted">Not started</option>
+          <option value="finished">Finished</option>
+        </select>
+      </label>
+      <button class="ghost clear" id="filter-clear" hidden>Clear</button>
+      <span class="muted" id="library-meta"></span>
+    </div>
+    <div class="grid" id="grid"></div>
+    <p class="empty" id="empty" hidden></p>
+  </section>
+
+  <section id="book-view" hidden>
+    <div class="book-header">
+      <div class="cover-large" id="book-cover"></div>
+      <div class="book-info">
+        <h2 id="book-title"></h2>
+        <p class="author" id="book-author"></p>
+        <p class="muted" id="book-meta"></p>
+        <p class="desc" id="book-desc"></p>
+        <div class="actions">
+          <button class="primary" id="play-book">Play</button>
+          <button class="ghost" id="restart-book">Start over</button>
+          <button class="ghost" id="find-metadata">Find details</button>
+          <a class="ghost" id="download-playlist" download>Download .m3u</a>
+          <button class="ghost danger" id="remove-book">Remove…</button>
+        </div>
+        <p class="muted small" id="book-source"></p>
+        <div class="author-bio" id="author-bio" hidden>
+          <h3 id="author-bio-name"></h3>
+          <p id="author-bio-text"></p>
+          <p class="muted small" id="author-bio-source"></p>
+        </div>
+        <p class="muted small" id="book-path"></p>
+      </div>
+    </div>
+    <ol class="tracks" id="tracks"></ol>
+  </section>
+</main>
+
+<footer class="player" id="player" hidden>
+  <div class="scrub">
+    <span class="time" id="time-now">0:00</span>
+    <input type="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="Seek">
+    <span class="time" id="time-left">-0:00</span>
+  </div>
+  <div class="controls">
+    <div class="now" id="now-playing">
+      <div class="cover-small" id="now-cover"></div>
+      <div class="now-text">
+        <strong id="now-title">—</strong>
+        <span id="now-chapter"></span>
+      </div>
+    </div>
+    <div class="transport">
+      <button id="prev" title="Previous chapter" aria-label="Previous chapter">⏮</button>
+      <button id="back15" title="Back 15 seconds" aria-label="Back 15 seconds">−15</button>
+      <button class="play" id="playpause" aria-label="Play or pause">▶</button>
+      <button id="fwd30" title="Forward 30 seconds" aria-label="Forward 30 seconds">+30</button>
+      <button id="next" title="Next chapter" aria-label="Next chapter">⏭</button>
+    </div>
+    <div class="extras">
+      <label class="speed">
+        <span>Speed</span>
+        <select id="speed" aria-label="Playback speed">
+          <option value="0.75">0.75×</option>
+          <option value="1" selected>1×</option>
+          <option value="1.25">1.25×</option>
+          <option value="1.5">1.5×</option>
+          <option value="1.75">1.75×</option>
+          <option value="2">2×</option>
+          <option value="2.5">2.5×</option>
+          <option value="3">3×</option>
+        </select>
+      </label>
+      <label class="speed">
+        <span>Sleep</span>
+        <select id="sleep" aria-label="Sleep timer">
+          <option value="0" selected>Off</option>
+          <option value="chapter">End of chapter</option>
+          <option value="900">15 min</option>
+          <option value="1800">30 min</option>
+          <option value="2700">45 min</option>
+          <option value="3600">60 min</option>
+        </select>
+      </label>
+    </div>
+  </div>
+  <audio id="audio" preload="metadata"></audio>
+</footer>
+
+<div class="toast" id="toast" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

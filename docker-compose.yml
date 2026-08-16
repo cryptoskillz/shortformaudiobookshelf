@@ -1,0 +1,31 @@
+# Shortlist Audio — builds the image from this directory.
+#
+# Use this one when you have the source on the machine running Docker
+# (docker compose up -d, or a Portainer stack pointing at a git repository).
+# If you are pasting a stack into Portainer's editor with no build context,
+# use docker-compose.portainer.yml instead — it needs no image build at all.
+
+services:
+  shortlistaudio:
+    build: .
+    image: shortlistaudio:latest
+    container_name: shortlistaudio
+    restart: unless-stopped
+
+    # Match the user that owns your media so uploaded and organised files come
+    # out with sane ownership. `id -u` / `id -g` on the host tells you these.
+    user: "${PUID:-1000}:${PGID:-1000}"
+
+    ports:
+      - "7345:7345"
+
+    volumes:
+      # INPUT — the messy folder. Uploads land here and scanning reads it.
+      - /volume1/media/audiobooks-incoming:/library
+      # OUTPUT — the tidy Author/Title copy that Organise writes.
+      - /volume1/media/audiobooks:/media
+      # STATE — index, cover cache, resume positions, settings. Keep this.
+      - /volume1/docker/shortlistaudio/config:/config
+
+    environment:
+      - TZ=${TZ:-Europe/London}

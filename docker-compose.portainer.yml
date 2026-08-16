@@ -1,0 +1,54 @@
+# Shortlist Audio — paste-into-Portainer version. No image build, no registry.
+#
+# The app is pure Python standard library, so it runs on the stock python
+# image with the source mounted in. That means a Portainer stack can be
+# deployed by pasting this file into the editor — nothing to build first.
+#
+# Before deploying:
+#   1. Copy this project's files (server.py, library.py, organise.py,
+#      settings.py, oggopus.py and the web/ folder) onto the NAS, e.g. to
+#      /volume1/docker/shortlistaudio/app
+#   2. Edit the four host paths below to match your NAS.
+#   3. Set PUID/PGID to the user that owns your media (`id -u`, `id -g`).
+#
+# Updating later is then just replacing the files in the app folder and
+# restarting the stack — no rebuild.
+
+services:
+  shortlistaudio:
+    image: python:3.13-alpine
+    container_name: shortlistaudio
+    restart: unless-stopped
+    working_dir: /app
+    command: python3 server.py
+
+    user: "${PUID:-1000}:${PGID:-1000}"
+
+    ports:
+      - "7345:7345"
+
+    volumes:
+      # THE APP — read-only; the container never needs to write here.
+      - /volume1/docker/shortlistaudio/app:/app:ro
+      # INPUT — the messy folder. Uploads land here and scanning reads it.
+      - /volume1/media/audiobooks-incoming:/library
+      # OUTPUT — the tidy Author/Title copy that Organise writes.
+      - /volume1/media/audiobooks:/media
+      # STATE — index, cover cache, resume positions, settings. Keep this.
+      - /volume1/docker/shortlistaudio/config:/config
+
+    environment:
+      - SHORTLIST_LIBRARY=/library
+      - SHORTLIST_OUTPUT=/media
+      - SHORTLIST_STATE_DIR=/config
+      - SHORTLIST_HOST=0.0.0.0
+      - SHORTLIST_PORT=7345
+      - PYTHONUNBUFFERED=1
+      - TZ=${TZ:-Europe/London}
+
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:7345/api/library', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3

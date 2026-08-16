@@ -2215,8 +2215,11 @@ def build_parser():
 
     parser.add_argument("--settings-list", action="store_true", help="print the current settings and exit")
     parser.add_argument("--save-settings", action="store_true", help="store the given options as the defaults")
-    parser.add_argument("--set-password", action="store_true", help="set the login username and password, then exit")
-    parser.add_argument("--clear-password", action="store_true", help="remove the login and exit")
+    parser.add_argument("--set-password", nargs="?", const=True, metavar="USERNAME",
+                        help="create or reset an admin account, then exit")
+    parser.add_argument("--list-users", action="store_true", help="print the accounts and exit")
+    parser.add_argument("--remove-accounts", action="store_true",
+                        help="delete every account, leaving the server open (last resort)")
     parser.add_argument("--settings-file", help="settings file (default: settings.json in the state directory)")
     return parser
 
@@ -2233,25 +2236,83 @@ def _resolve(args):
     return values
 
 
-def _configure_password(args, values):
-    print("Set the login for the player. Leave the username blank to cancel.")
-    username = input("Username: ").strip()
+def _configure_password(args, paths):
+    """Create or reset an admin account from the command line.
+
+    This is the way back in when nobody can sign in: it writes straight to
+    users.json, which is the only thing the server actually reads.
+    """
+    store = users_module.UserStore(os.path.join(paths["dir"], "users.json"))
+    existing = store.list()
+    if existing:
+        print("Accounts:")
+        for account in existing:
+            print(f"  {account['username']} ({account['role']})")
+        print()
+
+    username = (args.set_password if isinstance(args.set_password, str) else "").strip()
+    if not username:
+        username = input("Username to create or reset: ").strip()
     if not username:
         print("Cancelled — no changes made.")
         return 1
-    password = getpass.getpass("Password: ")
+
+    password = getpass.getpass("New password: ")
     if not password:
-        print("Cancelled — an empty password would leave the server open.")
+        print("Cancelled — an empty password would leave the account unusable.")
         return 1
-    if password != getpass.getpass("Confirm:  "):
+    if password != getpass.getpass("Confirm:      "):
         print("Passwords did not match — no changes made.")
         return 1
-    values["username"] = username
-    values["password_hash"] = settings_module.hash_password(password)
-    path = settings_module.save(values, args.settings_file)
-    print(f"\nLogin set for {username}. Stored (hashed) in {path}.")
-    print("Basic auth sends the password in cleartext over HTTP — fine on your own\n"
-          "network, but do not expose this server to the internet.")
+
+    try:
+        if store.get(username):
+            store.set_password(username, password)
+            store.set_role(username, users_module.ADMIN)
+            print(f"\nPassword reset for {username}, and they are an admin.")
+        else:
+            store.create(username, password, users_module.ADMIN)
+            print(f"\nCreated admin account {username}.")
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    print("Restart the server if it is running, then sign in at the player.")
+    return 0
+
+
+def _list_users(paths):
+    store = users_module.UserStore(os.path.join(paths["dir"], "users.json"))
+    accounts = store.list()
+    if not accounts:
+        print("No accounts — the server is open to anyone who can reach it.")
+        return 0
+    print(f"{len(accounts)} account(s) in {os.path.join(paths['dir'], 'users.json')}:")
+    for account in accounts:
+        print(f"  {account['username']:<20} {account['role']}")
+    return 0
+
+
+def _remove_all_accounts(paths):
+    """Last resort: delete every account so the server is open again."""
+    path = os.path.join(paths["dir"], "users.json")
+    if not os.path.exists(path):
+        print("There are no accounts to remove.")
+        return 0
+    answer = input(
+        "This deletes every account and leaves the server open to anyone on\n"
+        "your network. Type REMOVE to confirm: "
+    ).strip()
+    if answer != "REMOVE":
+        print("Cancelled — no changes made.")
+        return 1
+    try:
+        os.replace(path, path + ".removed")
+    except OSError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"Accounts moved to {path}.removed — the server is now open.")
+    print("Create a new admin in the player, or with --set-password.")
     return 0
 
 
@@ -2269,13 +2330,12 @@ def main(argv=None):
         print(f"Settings file: {args.settings_file}")
         print(settings_module.describe(values))
         return 0
+    if args.list_users:
+        return _list_users(paths)
     if args.set_password:
-        return _configure_password(args, values)
-    if args.clear_password:
-        values["username"], values["password_hash"] = "", ""
-        settings_module.save(values, args.settings_file)
-        print("Login removed — the server is now open to anyone who can reach it.")
-        return 0
+        return _configure_password(args, paths)
+    if args.remove_accounts:
+        return _remove_all_accounts(paths)
     if args.save_settings:
         path = settings_module.save(values, args.settings_file)
         print(f"Saved to {path}:\n{settings_module.describe(values)}")

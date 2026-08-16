@@ -182,6 +182,37 @@ startup, and any resume positions saved before accounts existed move to it.
 python3 server.py --set-password     # still works; creates or updates an admin
 ```
 
+### There is no default password
+
+Deliberately. A fresh install has **no accounts**, which means the server is
+open to anyone who can reach it and the settings panel says so in a warning.
+The first account you create becomes the admin. So on a new NAS deployment with
+an empty `/config`, you do not sign in — you open the player and create the
+account.
+
+### Locked out
+
+Everything lives in `users.json` in the state directory, and the command line
+can rewrite it:
+
+```bash
+python3 server.py --list-users              # who exists, and their roles
+python3 server.py --set-password            # create or reset an admin
+python3 server.py --set-password media      # skip the username prompt
+python3 server.py --remove-accounts         # last resort: delete them all
+```
+
+`--set-password` on an existing name resets that password **and** makes them an
+admin, which is the way back in when the only admin password is lost. In Docker
+run it inside the container so it edits the mounted `/config`:
+
+```bash
+docker exec -it shortform-audio-bookshelf python3 server.py --set-password
+```
+
+`--remove-accounts` moves `users.json` aside rather than deleting it, and leaves
+the server open until you create an account again.
+
 ### How sign-in works
 
 The browser gets an **HMAC-signed session cookie**, not HTTP Basic. That matters

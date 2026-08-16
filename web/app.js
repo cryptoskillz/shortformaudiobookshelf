@@ -31,7 +31,11 @@ const el = {
   nowTitle: $("now-title"), nowChapter: $("now-chapter"), nowCover: $("now-cover"),
   speed: $("speed"), sleep: $("sleep"), toast: $("toast"),
 
-  whoami: $("whoami"), signout: $("signout"), settingsOpen: $("settings-open"), settings: $("settings"), settingsSave: $("settings-save"),
+  app: $("app"), signin: $("signin"), signinForm: $("signin-form"),
+  loginUsername: $("login-username"), loginPassword: $("login-password"),
+  loginSubmit: $("login-submit"), loginError: $("login-error"),
+  menuToggle: $("menu-toggle"), userMenu: $("user-menu"), menuWho: $("menu-who"),
+  signout: $("signout"), settingsOpen: $("settings-open"), settings: $("settings"), settingsSave: $("settings-save"),
   settingsCancel: $("settings-cancel"), settingsStatus: $("settings-status"),
   settingsPaths: $("settings-paths"), authWarning: $("auth-warning"), authStatus: $("auth-status"),
   setLibrary: $("set-library"), setOutput: $("set-output"), setHost: $("set-host"), setPort: $("set-port"),
@@ -694,7 +698,27 @@ async function saveSettings() {
   }
 }
 
-el.settingsOpen.addEventListener("click", openSettings);
+function closeMenu() {
+  el.userMenu.hidden = true;
+  el.menuToggle.setAttribute("aria-expanded", "false");
+}
+
+el.menuToggle.addEventListener("click", (event) => {
+  event.stopPropagation();
+  const opening = el.userMenu.hidden;
+  el.userMenu.hidden = !opening;
+  el.menuToggle.setAttribute("aria-expanded", String(opening));
+});
+
+// Clicking anywhere else, or pressing escape, dismisses it.
+document.addEventListener("click", (event) => {
+  if (!el.userMenu.hidden && !event.target.closest(".menu-wrap")) closeMenu();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !el.userMenu.hidden) closeMenu();
+});
+
+el.settingsOpen.addEventListener("click", () => { closeMenu(); openSettings(); });
 el.settingsSave.addEventListener("click", saveSettings);
 el.settingsCancel.addEventListener("click", () => el.settings.close());
 
@@ -1191,11 +1215,12 @@ function applyRole(you, accountsConfigured) {
   state.isAdmin = admin;
 
   const signedIn = Boolean(you.username);
-  el.whoami.hidden = !signedIn;
+  el.menuWho.hidden = !signedIn;
   el.signout.hidden = !signedIn;
   if (signedIn) {
-    el.whoami.innerHTML =
-      `${escapeHtml(you.username)}<span class="role-tag">${escapeHtml(you.role)}</span>`;
+    el.menuWho.innerHTML =
+      `<strong>${escapeHtml(you.username)}</strong>` +
+      `<span class="role-tag">${escapeHtml(you.role)}</span>`;
   }
   for (const control of [el.uploadOpen, el.rescan]) control.hidden = !admin;
   el.findMetadata.hidden = !admin;
@@ -1317,17 +1342,13 @@ el.changeOwn.addEventListener("click", async (event) => {
   }
 });
 
-/* Basic auth keeps no session to end, so signing out means getting the browser
- * to throw away the credential it has cached: ask for a page that always
- * refuses, then reload so it prompts again. */
 el.signout.addEventListener("click", async () => {
+  closeMenu();
+  if (el.audio.src) el.audio.pause();
   try {
-    await fetch("/api/logout", {
-      headers: { Authorization: "Basic " + btoa("signed-out:signed-out") },
-      cache: "no-store",
-    });
+    await fetch("/api/logout", { method: "POST", body: "{}", cache: "no-store" });
   } catch {
-    /* the 401 is the point; a network error here changes nothing */
+    /* the cookie is server-side; a reload will land on the sign-in screen anyway */
   }
   location.reload();
 });
@@ -1423,11 +1444,61 @@ function syncPlayerHeight() {
 if (window.ResizeObserver) new ResizeObserver(syncPlayerHeight).observe(el.player);
 window.addEventListener("resize", syncPlayerHeight);
 
+/* --------------------------------------------------------------- sign in */
+
+function showSignIn(message) {
+  el.signin.hidden = false;
+  el.app.hidden = true;
+  el.loginError.hidden = !message;
+  el.loginError.textContent = message || "";
+  el.loginUsername.focus();
+}
+
+el.signinForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  el.loginSubmit.disabled = true;
+  el.loginError.hidden = true;
+  try {
+    const response = await fetch("/api/login", {
+      method: "POST",
+      body: JSON.stringify({
+        username: el.loginUsername.value.trim(),
+        password: el.loginPassword.value,
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "could not sign in");
+    location.reload();      // start clean, with the session cookie in place
+  } catch (error) {
+    el.loginError.hidden = false;
+    el.loginError.textContent = error.message;
+    el.loginPassword.value = "";
+    el.loginPassword.focus();
+  } finally {
+    el.loginSubmit.disabled = false;
+  }
+});
+
 /* ------------------------------------------------------------------- boot */
 
 syncPlayerHeight();
 el.speed.value = localStorage.getItem("shortlist.speed") || "1";
-loadLibrary().catch((error) => {
-  el.empty.hidden = false;
-  el.empty.textContent = `Could not reach the server: ${error.message}`;
-});
+
+(async () => {
+  try {
+    const who = await api("/api/users");
+    el.signin.hidden = true;
+    el.app.hidden = false;
+    applyRole(who.you, who.accountsConfigured);
+    await loadLibrary();
+  } catch (error) {
+    if (/sign in required|401/i.test(error.message)) {
+      showSignIn("");            // no library data is rendered while signed out
+    } else {
+      el.signin.hidden = true;
+      el.app.hidden = false;
+      el.empty.hidden = false;
+      el.empty.textContent = `Could not reach the server: ${error.message}`;
+    }
+  }
+})();

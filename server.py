@@ -22,6 +22,8 @@ from __future__ import annotations
 import argparse
 import base64
 import getpass
+import hashlib
+import secrets
 import glob
 import hmac
 import json
@@ -96,6 +98,56 @@ def _unused_path(path):
         if not os.path.exists(candidate):
             return candidate
     return f"{stem} ({os.getpid()}){extension}"
+
+
+SESSION_COOKIE = "sab_session"
+SESSION_DAYS = 30
+
+
+def session_secret(state_dir):
+    """A per-install key for signing session cookies, created on first use."""
+    path = os.path.join(state_dir, "secret")
+    try:
+        with open(path, "rb") as fh:
+            secret = fh.read().strip()
+        if len(secret) >= 32:
+            return secret
+    except OSError:
+        pass
+    secret = secrets.token_hex(32).encode()
+    try:
+        os.makedirs(state_dir, exist_ok=True)
+        with open(path, "wb") as fh:
+            fh.write(secret)
+        os.chmod(path, 0o600)
+    except OSError:
+        pass  # an unwritable secret just means sessions end at restart
+    return secret
+
+
+def make_session(secret, username, days=SESSION_DAYS):
+    expires = int(time.time() + days * 86400)
+    payload = f"{username}|{expires}"
+    signature = hmac.new(secret, payload.encode(), hashlib.sha256).hexdigest()
+    return base64.urlsafe_b64encode(f"{payload}|{signature}".encode()).decode()
+
+
+def read_session(secret, token):
+    """The username inside a valid, unexpired token, or None."""
+    try:
+        raw = base64.urlsafe_b64decode(token.encode()).decode()
+        username, expires, signature = raw.rsplit("|", 2)
+    except Exception:
+        return None
+    expected = hmac.new(secret, f"{username}|{expires}".encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(signature, expected):
+        return None
+    try:
+        if int(expires) < time.time():
+            return None
+    except ValueError:
+        return None
+    return username
 
 
 def _remove(path):
@@ -703,31 +755,50 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- authentication ----------------------------------------------------
 
+    def _cookie(self, name):
+        raw = self.headers.get("Cookie") or ""
+        for part in raw.split(";"):
+            key, _, value = part.strip().partition("=")
+            if key == name:
+                return value
+        return ""
+
     def _authorised(self):
         """Resolve the caller to an account, or None if they cannot be let in.
 
+        A signed session cookie is checked first: that is how the browser stays
+        signed in, and unlike HTTP Basic it can actually be signed out again.
+        Basic is still accepted so curl and other API clients keep working.
+
         With no accounts configured the server is open and the caller is
-        treated as an admin, which is how it worked before accounts existed.
+        treated as an admin, as it behaved before accounts existed.
         """
         store = self.server.users
         if not store.any():
             self.current_user = {"username": "", "role": users_module.ADMIN, "open": True}
             return True
 
-        header = self.headers.get("Authorization", "")
-        if not header.startswith("Basic "):
-            return False
-        try:
-            decoded = base64.b64decode(header[6:]).decode("utf-8")
-            username, _, password = decoded.partition(":")
-        except (ValueError, UnicodeDecodeError):
-            return False
+        token = self._cookie(SESSION_COOKIE)
+        if token:
+            username = read_session(self.server.secret, token)
+            if username:
+                user = store.get(username)
+                if user:
+                    self.current_user = user
+                    return True
 
-        user = store.authenticate(username, password)
-        if not user:
-            return False
-        self.current_user = user
-        return True
+        header = self.headers.get("Authorization", "")
+        if header.startswith("Basic "):
+            try:
+                decoded = base64.b64decode(header[6:]).decode("utf-8")
+                username, _, password = decoded.partition(":")
+            except (ValueError, UnicodeDecodeError):
+                return False
+            user = store.authenticate(username, password)
+            if user:
+                self.current_user = user
+                return True
+        return False
 
     @property
     def user_key(self):
@@ -746,11 +817,21 @@ class Handler(BaseHTTPRequestHandler):
         return False
 
     def _challenge(self):
-        body = b"Authentication required.\n"
+        """Refuse the request.
+
+        Only an API client that already tried HTTP Basic gets a
+        WWW-Authenticate header back. Sending it to a browser would pop the
+        native credentials box, which cannot be dismissed or signed out of;
+        the player shows its own sign-in screen on a plain 401 instead.
+        """
+        body = json.dumps({"error": "sign in required", "signInRequired": True}).encode()
         self.send_response(HTTPStatus.UNAUTHORIZED)
-        self.send_header("WWW-Authenticate", 'Basic realm="Shortform Audio Bookshelf", charset="UTF-8"')
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        if self.headers.get("Authorization", "").startswith("Basic "):
+            self.send_header("WWW-Authenticate",
+                             'Basic realm="Shortform Audio Bookshelf", charset="UTF-8"')
+        self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
@@ -781,11 +862,18 @@ class Handler(BaseHTTPRequestHandler):
                 pass
 
     def _route_post(self):
-        if not self._authorised():
-            return self._challenge()
         parsed = urllib.parse.urlparse(self.path)
         parts = [p for p in parsed.path.split("/") if p]
         query = urllib.parse.parse_qs(parsed.query)
+
+        # Signing in and out must work without already being signed in.
+        if parts == ["api", "login"]:
+            return self._handle_login()
+        if parts == ["api", "logout"]:
+            return self._handle_logout()
+
+        if not self._authorised():
+            return self._challenge()
         try:
             if parts == ["api", "rescan"]:
                 return self._handle_rescan()
@@ -828,9 +916,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def _route(self):
         self.current_user = None
+        parsed = urllib.parse.urlparse(self.path)
+        # The page shell carries no library data, so it loads before sign-in
+        # and shows its own sign-in screen.
+        shell = [urllib.parse.unquote(p) for p in parsed.path.split("/") if p]
+        if not shell or (len(shell) == 1 and shell[0] in ("index.html", "app.js", "style.css")):
+            return self._serve_static(shell[0] if shell else "index.html")
         if not self._authorised():
             return self._challenge()
-        parsed = urllib.parse.urlparse(self.path)
         parts = [urllib.parse.unquote(p) for p in parsed.path.split("/") if p]
         query = urllib.parse.parse_qs(parsed.query)
         try:
@@ -861,10 +954,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_get_settings()
         if parts == ["users"]:
             return self._handle_users()
-        if parts == ["logout"]:
-            # Basic auth has no sign-out. The browser only forgets a cached
-            # credential when it is refused, so this endpoint always refuses.
-            return self._challenge()
+
         if parts == ["browse"]:
             return self._handle_browse(query)
         if parts == ["authors", "search"]:
@@ -1092,6 +1182,41 @@ class Handler(BaseHTTPRequestHandler):
             want_cover=bool(body.get("applyCover", True)),
         )
         self._send_json({"applied": True, "coverStored": stored_cover, "entry": entry})
+
+    def _handle_login(self):
+        body = self._read_body()
+        username = users_module.clean_username(body.get("username", ""))
+        user = self.server.users.authenticate(username, str(body.get("password", "")))
+        if not user:
+            # One message for both wrong-user and wrong-password, so the form
+            # cannot be used to find out which accounts exist.
+            return self._error(HTTPStatus.UNAUTHORIZED, "wrong username or password")
+
+        token = make_session(self.server.secret, user["username"])
+        payload = json.dumps({"signedIn": True, "username": user["username"],
+                              "role": user["role"]}).encode()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Set-Cookie",
+                         f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Lax; "
+                         f"Max-Age={SESSION_DAYS * 86400}")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def _handle_logout(self):
+        """A real sign-out: the cookie is expired, so the next request is
+        anonymous. Nothing is cached by the browser to get stuck on."""
+        payload = json.dumps({"signedOut": True}).encode()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Set-Cookie",
+                         f"{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(payload)
 
     def _handle_users(self):
         """The account list, plus who is asking — the UI hides what they cannot do."""
@@ -1383,6 +1508,41 @@ class Handler(BaseHTTPRequestHandler):
             "port": values["port"],
             "host": values["host"],
         })
+
+    def _handle_login(self):
+        body = self._read_body()
+        username = users_module.clean_username(body.get("username", ""))
+        user = self.server.users.authenticate(username, str(body.get("password", "")))
+        if not user:
+            # One message for both wrong-user and wrong-password, so the form
+            # cannot be used to find out which accounts exist.
+            return self._error(HTTPStatus.UNAUTHORIZED, "wrong username or password")
+
+        token = make_session(self.server.secret, user["username"])
+        payload = json.dumps({"signedIn": True, "username": user["username"],
+                              "role": user["role"]}).encode()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Set-Cookie",
+                         f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Lax; "
+                         f"Max-Age={SESSION_DAYS * 86400}")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def _handle_logout(self):
+        """A real sign-out: the cookie is expired, so the next request is
+        anonymous. Nothing is cached by the browser to get stuck on."""
+        payload = json.dumps({"signedOut": True}).encode()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Set-Cookie",
+                         f"{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(payload)
 
     def _handle_users(self):
         """The account list, plus who is asking — the UI hides what they cannot do."""
@@ -1918,6 +2078,7 @@ def rebind(current, host, port):
         replacement,
         library=current.library, progress=current.progress, metadata=current.metadata,
         authors=current.authors, metadata_job=current.metadata_job, users=current.users,
+        secret=current.secret,
         removed=current.removed, scan_lock=current.scan_lock,
         verbose=current.verbose, index_path=current.index_path,
         settings_file=current.settings_file,
@@ -2134,6 +2295,7 @@ def main(argv=None):
         authors=AuthorStore(os.path.join(paths["dir"], "authors.json")),
         removed=RemovedStore(os.path.join(paths["dir"], "removed.json")),
         users=user_store,
+        secret=session_secret(paths["dir"]),
         metadata_job=MetadataJob(),
         scan_lock=threading.Lock(),
         verbose=bool(values["verbose"]),

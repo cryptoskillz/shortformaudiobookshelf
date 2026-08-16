@@ -11,15 +11,40 @@
 </head>
 <body>
 
+<div class="signin" id="signin" hidden>
+  <form class="signin-card" id="signin-form">
+    <h1>Shortform Audio Bookshelf</h1>
+    <p class="muted small">Sign in to reach your library.</p>
+    <label class="field">
+      <span>Username</span>
+      <input type="text" id="login-username" autocomplete="username" autocapitalize="none" required>
+    </label>
+    <label class="field">
+      <span>Password</span>
+      <input type="password" id="login-password" autocomplete="current-password" required>
+    </label>
+    <button class="primary" type="submit" id="login-submit">Sign in</button>
+    <p class="signin-error" id="login-error" hidden></p>
+  </form>
+</div>
+
+<div id="app">
+
 <header class="topbar">
   <button class="back" id="back" hidden aria-label="Back to library">←</button>
   <h1 id="heading"><button class="home" id="home">Shortform Audio Bookshelf</button><span class="crumb" id="crumb"></span></h1>
   <input type="search" id="search" placeholder="Search books, authors…" aria-label="Search library" autocomplete="off">
   <button class="ghost" id="upload-open" title="Add audio files to the library">Add books</button>
   <button class="ghost" id="rescan" title="Rescan the library directory">Rescan</button>
-  <span class="whoami" id="whoami" hidden></span>
-  <button class="ghost" id="signout" hidden title="Sign out">Sign out</button>
-  <button class="ghost" id="settings-open" title="Settings" aria-label="Settings">⚙</button>
+  <div class="menu-wrap">
+    <button class="ghost" id="menu-toggle" aria-haspopup="true" aria-expanded="false"
+            title="Account and settings" aria-label="Account and settings">⚙</button>
+    <div class="menu" id="user-menu" hidden role="menu">
+      <div class="menu-who" id="menu-who" hidden></div>
+      <button class="menu-item" id="settings-open" role="menuitem">Settings</button>
+      <button class="menu-item" id="signout" role="menuitem" hidden>Sign out</button>
+    </div>
+  </div>
 </header>
 
 <input type="file" id="file-input" multiple accept=".opus,.ogg,.oga,.mp3,.m4a,.m4b,.flac,.wav,.aac,audio/*" hidden>
@@ -398,6 +423,8 @@
   </div>
   <audio id="audio" preload="metadata"></audio>
 </footer>
+
+</div>
 
 <div class="toast" id="toast" hidden></div>
 <script src="app.js"></script>

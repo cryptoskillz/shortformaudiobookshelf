@@ -45,6 +45,37 @@ body {
 button, select, input { font: inherit; color: inherit; }
 button { cursor: pointer; }
 
+/* ---------- sign in ---------- */
+
+.signin {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+}
+
+.signin-card {
+  width: min(380px, 100%);
+  padding: 30px 28px 26px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+.signin-card h1 { margin: 0 0 6px; font-size: 20px; letter-spacing: -.02em; }
+.signin-card p { margin: 0 0 20px; }
+.signin-card .field { margin-bottom: 14px; }
+.signin-card .primary { width: 100%; margin-top: 6px; }
+.signin-error {
+  margin: 14px 0 0 !important;
+  color: #c0392b;
+  font-size: 13px;
+}
+@media (prefers-color-scheme: dark) { .signin-error { color: #ff8b76; } }
+
 /* ---------- top bar ---------- */
 
 .topbar {
@@ -147,24 +178,52 @@ main { padding: 24px 20px 40px; max-width: 1180px; margin: 0 auto; }
 .filter select:focus { outline: none; border-color: var(--accent); }
 .ghost.clear { padding: 5px 12px; font-size: 13px; }
 
-.whoami {
-  color: var(--muted);
-  font-size: 13px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 22ch;
+.menu-wrap { position: relative; }
+
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 40;
+  min-width: 190px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
 }
-.whoami .role-tag {
+
+.menu-who {
+  padding: 9px 12px 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 6px;
+  line-height: 1.35;
+}
+.menu-who strong { display: block; font-size: 14px; }
+.menu-who .role-tag {
+  display: inline-block;
+  margin-top: 4px;
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: .05em;
-  margin-left: 5px;
-  padding: 1px 6px;
+  padding: 1px 7px;
   border-radius: 999px;
   background: var(--surface-2);
+  color: var(--muted);
 }
-#signout { padding: 5px 12px; font-size: 13px; }
+
+.menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text);
+}
+.menu-item:hover { background: var(--surface-2); }
 
 .muted { color: var(--muted); }
 .small { font-size: 13px; }

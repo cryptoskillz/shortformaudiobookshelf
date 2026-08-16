@@ -1,23 +1,24 @@
-# Shortform Audio Bookshelf — paste-into-Portainer version. No image build, no registry.
+# Shortform Audio Bookshelf — no-build variant.
 #
-# The app is pure Python standard library, so it runs on the stock python
-# image with the source mounted in. That means a Portainer stack can be
-# deployed by pasting this file into the editor — nothing to build first.
+# Use docker-compose.yml instead if you can: a Portainer Repository stack
+# pointed at the GitHub repo builds itself and updates on redeploy.
 #
-# Before deploying:
-#   1. Copy this project's files (server.py, library.py, organise.py,
-#      settings.py, oggopus.py and the web/ folder) onto the NAS, e.g. to
-#      /volume1/docker/shortlistaudio/app
-#   2. Edit the four host paths below to match your NAS.
-#   3. Set PUID/PGID to the user that owns your media (`id -u`, `id -g`).
+# This file is the fallback for when building on the NAS is not an option —
+# it runs the stock python image with the source mounted in. The app is pure
+# Python standard library, so nothing needs compiling.
 #
-# Updating later is then just replacing the files in the app folder and
-# restarting the stack — no rebuild.
+#   1. Put the source on the NAS, e.g. /volume1/docker/sab/app
+#        git clone https://github.com/cryptoskillz/shortformaudiobookshelf.git \
+#          /volume1/docker/sab/app
+#   2. Paste this into Portainer's stack editor.
+#   3. Set the environment variables below in Portainer.
+#
+# Updating later is `git pull` in that folder, then restart the stack.
 
 services:
-  shortlistaudio:
+  shortform-audio-bookshelf:
     image: python:3.13-alpine
-    container_name: shortlistaudio
+    container_name: shortform-audio-bookshelf
     restart: unless-stopped
     working_dir: /app
     command: python3 server.py
@@ -25,17 +26,14 @@ services:
     user: "${PUID:-1000}:${PGID:-1000}"
 
     ports:
-      - "7345:7345"
+      - "${HOST_PORT:-7345}:7345"
 
     volumes:
-      # THE APP — read-only; the container never needs to write here.
-      - /volume1/docker/shortlistaudio/app:/app:ro
-      # INPUT — the messy folder. Uploads land here and scanning reads it.
-      - /volume1/media/audiobooks-incoming:/library
-      # OUTPUT — the tidy Author/Title copy that Organise writes.
-      - /volume1/media/audiobooks:/media
-      # STATE — index, cover cache, resume positions, settings. Keep this.
-      - /volume1/docker/shortlistaudio/config:/config
+      # The source, read-only — the container never writes here.
+      - ${APP_PATH:-/volume1/docker/sab/app}:/app:ro
+      - ${LIBRARY_PATH:-/volume1/media/audiobooks-incoming}:/library
+      - ${MEDIA_PATH:-/volume1/media/audiobooks}:/media
+      - ${CONFIG_PATH:-/volume1/docker/sab/config}:/config
 
     environment:
       - SHORTLIST_LIBRARY=/library
@@ -47,7 +45,7 @@ services:
       - TZ=${TZ:-Europe/London}
 
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:7345/api/library', timeout=4)"]
+      test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:7345/', timeout=4)"]
       interval: 30s
       timeout: 5s
       start_period: 20s

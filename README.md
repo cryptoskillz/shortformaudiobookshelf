@@ -26,49 +26,84 @@ python3 server.py
 Open <http://localhost:7345>. The startup banner also prints a LAN address
 (`http://192.168.x.x:7345`) that works from a phone on the same network.
 
-## Running in Docker
+## Running on a NAS with Portainer
 
-The app has no dependencies beyond the Python standard library, so the image is
-just Python plus five source files — 74 MB, nothing to compile. Three folders
-are mapped in, and the app neither knows nor cares whether they are local disks
-or NAS shares:
+The repo is public, so Portainer can deploy it straight from GitHub — no
+registry, no copying files, and updates are one button.
+
+### 1. Create the folders on the NAS
+
+Three, and the app neither knows nor cares that they live on a NAS:
 
 | Mount | What it is |
 | --- | --- |
 | `/library` | **input** — the messy folder. Uploads land here, scanning reads it. |
 | `/media` | **output** — the tidy `Author/Title` copy that Organise writes. |
-| `/config` | index, cover cache, resume positions, settings. Keep this one. |
+| `/config` | index, cover cache, accounts, resume positions. **Back this one up.** |
 
-### Portainer, without building anything
+```
+/volume1/media/audiobooks-incoming
+/volume1/media/audiobooks
+/volume1/docker/sab/config
+```
+
+### 2. Add the stack in Portainer
+
+**Stacks → Add stack → Repository**
+
+| Field | Value |
+| --- | --- |
+| Repository URL | `https://github.com/cryptoskillz/shortformaudiobookshelf` |
+| Repository reference | `refs/heads/main` |
+| Compose path | `docker-compose.yml` |
+
+### 3. Set the environment variables
+
+In the stack's **Environment variables** box, so you never have to edit the
+compose file:
+
+| Name | Example |
+| --- | --- |
+| `LIBRARY_PATH` | `/volume1/media/audiobooks-incoming` |
+| `MEDIA_PATH` | `/volume1/media/audiobooks` |
+| `CONFIG_PATH` | `/volume1/docker/sab/config` |
+| `HOST_PORT` | `7345` |
+| `PUID` / `PGID` | whatever `id -u` and `id -g` report for the user that owns your media |
+| `TZ` | `Europe/London` |
+
+`PUID`/`PGID` matter: get them wrong and uploads and Organise fail with
+permission errors, because the container will not own the files it writes.
+
+### 4. Deploy, then create your account
+
+Open `http://<nas>:7345`. With no accounts the server is **open to anyone on
+your network** and the settings panel says so — go to **⚙ → Accounts** and make
+an admin straight away. Adding the first account turns sign-in on.
+
+### Updating
+
+Portainer → the stack → **Pull and redeploy**. It fetches the latest commit and
+rebuilds. Nothing in `/config` is touched, so your accounts, index and saved
+places survive.
+
+### If building on the NAS is not an option
 
 `docker-compose.portainer.yml` runs the stock `python:3.13-alpine` image with
-the source mounted in, so a stack can be **pasted straight into Portainer's
-editor** — no registry, no build context, no git repository.
+the source mounted in — no build at all, because the app is pure standard
+library. Clone the repo onto the NAS, paste that file into Portainer's editor,
+and set `APP_PATH` to the clone. Updating is `git pull` plus a restart.
 
-1. Copy `server.py`, `library.py`, `organise.py`, `settings.py`, `oggopus.py`
-   and the `web/` folder onto the NAS, e.g. `/volume1/docker/shortlistaudio/app`.
-2. Paste the compose file into a new Portainer stack.
-3. Edit the four host paths and set `PUID`/`PGID` to whoever owns your media
-   (`id -u`, `id -g`).
-
-Updating later is replacing those files and restarting the stack.
-
-### Building an image instead
+### From the command line
 
 ```bash
-docker compose up -d           # uses docker-compose.yml
+git clone https://github.com/cryptoskillz/shortformaudiobookshelf.git
+cd shortformaudiobookshelf
+LIBRARY_PATH=/path/in MEDIA_PATH=/path/out CONFIG_PATH=/path/config docker compose up -d
 ```
 
-Or build here and move it over, if building on the NAS is awkward:
-
-```bash
-docker build -t shortlistaudio:latest .
-docker save shortlistaudio:latest | gzip > shortlistaudio.tar.gz
-# copy to the NAS, then: docker load < shortlistaudio.tar.gz
-```
-
-Change the **host** side of the port mapping (`"8080:7345"`) rather than the
-port setting inside the app — the container always listens on 7345.
+The image is 74 MB — Python plus seven source files, nothing to compile.
+Change the **host** side of the port mapping rather than the port setting inside
+the app; the container always listens on 7345.
 
 ## Settings
 

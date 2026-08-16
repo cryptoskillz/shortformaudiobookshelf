@@ -17,6 +17,7 @@ instead of shuffling files back and forth.
 
 from __future__ import annotations
 
+import glob
 import json
 import os
 import re
@@ -91,6 +92,28 @@ def plan(lib, output):
     return entries
 
 
+def _atomic_copy(source, dest):
+    """Copy via a temporary file in the destination folder, then rename.
+
+    Writing straight to `dest` means an interrupted run — a container redeploy,
+    a power cut — leaves a truncated file that looks finished. Worse, a partial
+    Opus often has no readable duration, so the quality comparison cannot tell
+    it is worse than the original and keeps it forever. A rename is atomic, so
+    the destination either has the whole file or nothing.
+    """
+    temp = f"{dest}.{os.getpid()}.part"
+    try:
+        shutil.copy2(source, temp)
+        os.replace(temp, dest)
+    except BaseException:
+        # BaseException so a KeyboardInterrupt cannot leave the scratch file.
+        try:
+            os.remove(temp)
+        except OSError:
+            pass
+        raise
+
+
 def _copy(source, dest, overwrite):
     """Copy one file, deciding what to do about anything already there.
 
@@ -105,23 +128,31 @@ def _copy(source, dest, overwrite):
         if not overwrite:
             # Same chapter, different encode: take it only if it is better.
             try:
-                probe = oggopus.read(source)
-                incoming_duration = probe["duration"]
+                incoming_duration = oggopus.read(source)["duration"]
             except Exception:
                 incoming_duration = 0.0
             try:
-                probe = oggopus.read(dest)
-                existing_duration = probe["duration"]
+                existing_duration = oggopus.read(dest)["duration"]
             except Exception:
                 existing_duration = 0.0
+
+            # A destination we cannot read while the source reads fine is not a
+            # lower-quality encode, it is a damaged file — most likely a copy
+            # cut short before this was atomic. Preserving it would keep the
+            # corruption for ever, because a partial Opus reports no duration
+            # and so always looks incomparable.
+            if incoming_duration > 0 and existing_duration <= 0:
+                _atomic_copy(source, dest)
+                return "replaced-damaged"
+
             candidate = {"size": incoming.st_size, "duration": incoming_duration}
             incumbent = {"size": existing.st_size, "duration": existing_duration}
             if not library.is_higher_quality(candidate, incumbent):
                 return "skipped-lower-quality"
-        shutil.copy2(source, dest)
+        _atomic_copy(source, dest)
         return "replaced-upgrade"
 
-    shutil.copy2(source, dest)
+    _atomic_copy(source, dest)
     return "copied"
 
 
@@ -196,6 +227,11 @@ def organise(lib, output, dry_run=False, overwrite=False, playlists_only=False,
         )
 
     entries = plan(lib, output)
+    for stale in glob.glob(os.path.join(output, "**", "*.part"), recursive=True):
+        try:
+            os.remove(stale)          # scratch from a run that was cut short
+        except OSError:
+            pass
     total_files = sum(len(entry["files"]) for entry in entries)
     done_files = 0
 
@@ -216,7 +252,8 @@ def organise(lib, output, dry_run=False, overwrite=False, playlists_only=False,
     }
     totals = {
         "copied": 0, "replaced-upgrade": 0, "skipped-identical": 0,
-        "skipped-lower-quality": 0, "failed": 0, "playlists": 0, "deleted": 0,
+        "skipped-lower-quality": 0, "replaced-damaged": 0, "failed": 0,
+        "playlists": 0, "deleted": 0,
     }
 
     if playlists_only:
@@ -275,7 +312,8 @@ def organise(lib, output, dry_run=False, overwrite=False, playlists_only=False,
                 totals[action] = totals.get(action, 0) + 1
             advance(file_entry["name"])
             if (delete_originals and not dry_run
-                    and action in ("copied", "replaced-upgrade", "skipped-identical")):
+                    and action in ("copied", "replaced-upgrade", "replaced-damaged",
+                                   "skipped-identical")):
                 try:
                     if (os.path.exists(file_entry["dest"])
                             and os.path.getsize(file_entry["dest"])
@@ -289,8 +327,8 @@ def organise(lib, output, dry_run=False, overwrite=False, playlists_only=False,
             record["files"].append({"source": file_entry["source"],
                                     "dest": file_entry["dest"], "action": action})
             marker = {"copied": "+", "replaced-upgrade": "↑", "skipped-identical": "=",
-                      "skipped-lower-quality": "·", "would-copy": "+"}.get(
-                          action.split("+")[0], "?")
+                      "skipped-lower-quality": "·", "replaced-damaged": "!",
+                      "would-copy": "+"}.get(action.split("+")[0], "?")
             log(f"      {marker} {file_entry['name']}")
 
         if not dry_run:
@@ -330,6 +368,8 @@ def summarise(manifest):
         f"{totals.get('skipped-identical', 0)} already there",
         f"{totals.get('skipped-lower-quality', 0)} kept (incoming was not better)",
     ]
+    if totals.get("replaced-damaged"):
+        parts.append(f"{totals['replaced-damaged']} damaged files replaced")
     if totals.get("deleted"):
         parts.append(f"{totals['deleted']} originals deleted")
     if totals.get("failed"):

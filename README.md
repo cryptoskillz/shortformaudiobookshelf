@@ -339,6 +339,12 @@ This **copies** — your original files are never moved, renamed or deleted — 
 filenames so the folder stays portable, and `index.json` describes the whole
 organised tree. The manifest records every file written.
 
+Copies go to a temporary name and are renamed into place, so a run cut short —
+a container redeploy, a power cut — never leaves a half-written file behind.
+A destination that cannot be read while its source can is treated as damaged
+and replaced, which repairs anything left over from an interrupted run before
+that was true.
+
 Re-running is safe and cheap. A file already in place is left alone; one that
 differs is replaced **only when the incoming copy is higher quality**, compared
 by bitrate. So re-organising after re-ripping a book upgrades it in place:

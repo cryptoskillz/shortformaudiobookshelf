@@ -1,4 +1,10 @@
+[ ] add a stciky footer for play on mobile
+[ ] add a ai transcript toll that will take a full book and create you a 20 minute summary
+[ ] add a a-z filter
+[ ] add a recomendation section
+[ ] add a use may also like to the book
 [ ] scoped API key for the rescan webhook (ApiKeyStore class is written in server.py but NOT wired up — needs routes, the scope check on /api/rescan, and a Settings panel to create/revoke). Lets Bindery trigger a rescan after import without handing it an admin password.
+[x] is slow on the first load due ot the size of the the json file we may want to move it to sqllite 
 [ ] have a way to export it so something like Bindery could pull it in and have a 3rd option (ebook/audiobook/short-audiobook)
 [x] package it up get it on github so we can deploy it (Portainer Repository stack from the public repo, env-var paths, docs rewritten)
 [x] docs for docker install

@@ -854,14 +854,22 @@ class Handler(BaseHTTPRequestHandler):
         """A cover downloaded from a metadata provider, if there is one."""
         return self._fetched_covers().get(book_id)
 
-    def _apply_overlay(self, payload, book_id):
-        """Let looked-up details win over what the tags said."""
+    def _apply_overlay(self, payload, book_id, full=True):
+        """Let looked-up details win over what the tags said.
+
+        `full` is off for the library listing. A fetched description is a
+        paragraph or two per book, none of which the grid draws — it only
+        appears on a book's own page. Sending them all made the listing grow
+        several times over as the metadata lookup filled them in.
+        """
         entry = self.metadata_store.get(book_id)
         if self._overlay_cover(book_id):
             payload["hasCover"] = True
         if not entry:
             return payload
-        for key in ("description", "narrator", "series", "year", "publisher"):
+        fields = ("description", "narrator", "series", "year", "publisher") if full \
+            else ("narrator", "series", "year")
+        for key in fields:
             if entry.get(key):
                 payload[key] = entry[key]
         if entry.get("genre") and not payload.get("genre"):
@@ -1235,7 +1243,8 @@ class Handler(BaseHTTPRequestHandler):
                 "root": self.lib.root,
                 "scannedAt": self.lib.scanned_at,
                 "count": len(books),
-                "books": [self._apply_overlay(self.lib.book_summary(b), b["id"]) for b in books],
+                "books": [self._apply_overlay(self.lib.book_summary(b), b["id"], full=False)
+                          for b in books],
                 "progress": progress,
             }
         )

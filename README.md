@@ -536,6 +536,10 @@ The **Download .m3u** button on each book page gives you that one.
   the directory's mtime. Looking each one up individually made the library
   listing cost books x files: with a few thousand of each it took seconds, and
   grew worse while the metadata job was adding covers.
+- The library listing carries only what the grid draws and what search needs.
+  Looked-up descriptions are a paragraph per book and appear only on a book's
+  own page, so sending them in the listing grew it several times over as the
+  metadata lookup filled them in.
 - JSON responses and the web assets are gzipped when the client asks. On a
   3,803-book library the listing goes from 958 KB to 162 KB, which is most of
   what a first load costs over a remote link. Audio and images are never

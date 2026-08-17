@@ -540,9 +540,11 @@ The **Download .m3u** button on each book page gives you that one.
   3,803-book library the listing goes from 958 KB to 162 KB, which is most of
   what a first load costs over a remote link. Audio and images are never
   compressed — they already are, and it would break range requests.
-- The library grid renders every book at once. At 3,803 books that is about
-  160ms and 26k DOM nodes on a laptop, with cover images loaded lazily as you
-  scroll. Well past that, or on a slow phone, it would want windowing.
+- The grid draws 120 books at a time and grows as you scroll, so 3,803 books
+  start as about 4,200 DOM nodes rather than 26,000. Filtering and search still
+  run over the whole library in memory, so they stay instant — only what is
+  drawn is limited, not what is searched. Opening a book and coming back
+  restores both the cards drawn and the scroll position.
 
 ## Files
 

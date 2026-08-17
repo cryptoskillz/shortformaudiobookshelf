@@ -85,6 +85,9 @@ const state = {
   sleepAt: 0,         // epoch ms, 0 = off
   sleepAfterChapter: false,
   lastSaved: 0,
+  filtered: [],        // books passing the current filters
+  shown: 0,            // how many of them are actually drawn
+  returnTo: null,      // grid position to restore when leaving a book page
 };
 
 /* ---------------------------------------------------------------- helpers */
@@ -174,36 +177,75 @@ function matchesFilters(book) {
   }
 }
 
-function renderLibrary() {
+/* The grid renders a chunk at a time and grows as you scroll.
+ *
+ * Building 3,800 cards up front is 26,000 DOM nodes, which a laptop shrugs off
+ * and a phone does not. Filtering still runs over the whole library in memory,
+ * so search stays instant — this only limits what is drawn, not what is
+ * searched, which server-side paging could not do without a round trip per
+ * keystroke. */
+const PAGE = 120;
+
+function cardMarkup(book) {
+  const saved = state.progress[book.id];
+  const fraction = progressFraction(book);
+  const badge = saved && saved.finished
+    ? '<span class="badge">Done</span>'
+    : saved ? '<span class="badge">Resume</span>' : "";
+  const bar = fraction > 0 && fraction < 1
+    ? `<div class="bar"><span style="width:${(fraction * 100).toFixed(1)}%"></span></div>`
+    : "";
+  return `
+    <button class="card" data-id="${book.id}">
+      <div class="art">${coverMarkup(book)}${badge}${bar}</div>
+      <span class="title">${escapeHtml(book.title)}</span>
+      <span class="sub">${escapeHtml(book.author)}</span>
+      <span class="sub">${escapeHtml(book.durationText)}${book.trackCount > 1 ? ` · ${book.trackCount} chapters` : ""}</span>
+    </button>`;
+}
+
+function showMore() {
+  const next = state.shown + PAGE;
+  const slice = state.filtered.slice(state.shown, next);
+  if (!slice.length) return;
+  el.grid.insertAdjacentHTML("beforeend", slice.map(cardMarkup).join(""));
+  state.shown = Math.min(next, state.filtered.length);
+  updateCount();
+  // Keep the sentinel after the cards we just appended.
+  if (state.shown < state.filtered.length) {
+    el.grid.appendChild(el.sentinel);
+  } else {
+    el.sentinel.remove();
+  }
+}
+
+function updateCount() {
+  const total = state.books.length;
+  const matching = state.filtered.length;
+  if (!total) {
+    el.libraryMeta.textContent = "";
+    return;
+  }
+  const filtering = matching !== total;
+  el.libraryMeta.textContent =
+    `${total} book${total === 1 ? "" : "s"}` +
+    (filtering ? ` · ${matching} shown` : "") +
+    (state.shown < matching ? ` · showing ${state.shown}` : "");
+}
+
+function renderLibrary({ restore = 0, keepScroll = false } = {}) {
   const filtering = Boolean(el.search.value.trim() || el.filterAuthor.value ||
                             el.filterGenre.value || el.filterState.value);
-  const books = state.books.filter(matchesFilters);
+  state.filtered = state.books.filter(matchesFilters);
+  state.shown = 0;
   el.filterClear.hidden = !filtering;
+  el.grid.innerHTML = "";
+  // Coming back from a book, redraw what was on screen before so the reader
+  // lands where they left off rather than at the top of a shorter grid.
+  do { showMore(); } while (state.shown < restore && state.shown < state.filtered.length);
+  if (!keepScroll) window.scrollTo(0, 0);
 
-  el.libraryMeta.textContent = state.books.length
-    ? `${state.books.length} book${state.books.length === 1 ? "" : "s"}` +
-      (filtering ? ` · ${books.length} shown` : "")
-    : "";
-
-  el.grid.innerHTML = books.map((book) => {
-    const saved = state.progress[book.id];
-    const fraction = progressFraction(book);
-    const badge = saved && saved.finished
-      ? '<span class="badge">Done</span>'
-      : saved ? '<span class="badge">Resume</span>' : "";
-    const bar = fraction > 0 && fraction < 1
-      ? `<div class="bar"><span style="width:${(fraction * 100).toFixed(1)}%"></span></div>`
-      : "";
-    return `
-      <button class="card" data-id="${book.id}">
-        <div class="art">${coverMarkup(book)}${badge}${bar}</div>
-        <span class="title">${escapeHtml(book.title)}</span>
-        <span class="sub">${escapeHtml(book.author)}</span>
-        <span class="sub">${escapeHtml(book.durationText)}${book.trackCount > 1 ? ` · ${book.trackCount} chapters` : ""}</span>
-      </button>`;
-  }).join("");
-
-  el.empty.hidden = books.length > 0;
+  el.empty.hidden = state.filtered.length > 0;
   el.empty.textContent = state.books.length
     ? "Nothing matches those filters."
     : (state.libraryMissing
@@ -236,11 +278,17 @@ function showLibrary() {
   el.back.hidden = true;
   el.crumb.textContent = "";
   state.viewing = null;
-  renderLibrary();
+  const back = state.returnTo;
+  state.returnTo = null;
+  renderLibrary({ restore: back ? back.shown : 0, keepScroll: Boolean(back) });
+  if (back) window.scrollTo(0, back.scroll);
 }
 
 async function showBook(bookId) {
   const book = await api(`/api/books/${bookId}`);
+  if (!el.libraryView.hidden) {
+    state.returnTo = { shown: state.shown, scroll: window.scrollY };
+  }
   state.viewing = book;
   if (book.progress) state.progress[book.id] = book.progress;
 
@@ -523,10 +571,9 @@ el.bookAuthor.addEventListener("click", (event) => {
   showLibrary();
   window.scrollTo(0, 0);
 });
-el.search.addEventListener("input", renderLibrary);
-el.filterAuthor.addEventListener("change", renderLibrary);
-el.filterGenre.addEventListener("change", renderLibrary);
-el.filterState.addEventListener("change", renderLibrary);
+for (const control of [el.search, el.filterAuthor, el.filterGenre, el.filterState]) {
+  control.addEventListener(control === el.search ? "input" : "change", () => renderLibrary());
+}
 el.filterClear.addEventListener("click", () => {
   el.search.value = "";
   el.filterAuthor.value = el.filterGenre.value = el.filterState.value = "";
@@ -1608,6 +1655,20 @@ el.signinForm.addEventListener("submit", async (event) => {
     el.loginSubmit.disabled = false;
   }
 });
+
+/* A sentinel after the last card: when it scrolls into view, draw more. The
+ * margin means the next chunk is ready before it is reached. */
+el.sentinel = document.createElement("div");
+el.sentinel.className = "sentinel";
+if (window.IntersectionObserver) {
+  new IntersectionObserver((entries) => {
+    if (entries.some((e) => e.isIntersecting)) showMore();
+  }, { rootMargin: "800px" }).observe(el.sentinel);
+} else {
+  window.addEventListener("scroll", () => {
+    if (window.innerHeight + window.scrollY > document.body.offsetHeight - 800) showMore();
+  });
+}
 
 /* ------------------------------------------------------------------- boot */
 

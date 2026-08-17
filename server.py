@@ -819,10 +819,40 @@ class Handler(BaseHTTPRequestHandler):
     def metadata_store(self):
         return self.server.metadata
 
+    def _fetched_covers(self):
+        """Every provider-fetched cover, listed once and cached.
+
+        This used to glob the covers directory once per book. Building the
+        library listing therefore cost books x files filename comparisons —
+        with a few thousand of each, seconds per request, and worse while the
+        metadata job was adding covers. The directory is now read once and the
+        result reused until its mtime changes.
+        """
+        covers = self.server.paths["covers"]
+        try:
+            stamp = os.stat(covers).st_mtime_ns
+        except OSError:
+            return {}
+
+        cached = getattr(self.server, "cover_map", None)
+        if cached and cached[0] == stamp:
+            return cached[1]
+
+        mapping = {}
+        try:
+            with os.scandir(covers) as entries:
+                for entry in entries:
+                    book_id, marker, _ = entry.name.partition(".fetched.")
+                    if marker:
+                        mapping[book_id] = entry.path
+        except OSError:
+            return {}
+        self.server.cover_map = (stamp, mapping)
+        return mapping
+
     def _overlay_cover(self, book_id):
         """A cover downloaded from a metadata provider, if there is one."""
-        matches = glob.glob(os.path.join(self.server.paths["covers"], f"{book_id}.fetched.*"))
-        return matches[0] if matches else None
+        return self._fetched_covers().get(book_id)
 
     def _apply_overlay(self, payload, book_id):
         """Let looked-up details win over what the tags said."""

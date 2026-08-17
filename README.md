@@ -532,6 +532,10 @@ The **Download .m3u** button on each book page gives you that one.
   login. The player warns about this in the settings panel.
 - Audio is streamed as-is — there is no transcoding, so the browser must
   support the format. Opus works everywhere except older Safari.
+- The provider-fetched covers are listed once per request and cached against
+  the directory's mtime. Looking each one up individually made the library
+  listing cost books x files: with a few thousand of each it took seconds, and
+  grew worse while the metadata job was adding covers.
 - JSON responses and the web assets are gzipped when the client asks. On a
   3,803-book library the listing goes from 958 KB to 162 KB, which is most of
   what a first load costs over a remote link. Audio and images are never

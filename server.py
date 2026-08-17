@@ -22,14 +22,15 @@ from __future__ import annotations
 import argparse
 import base64
 import getpass
-import hashlib
-import secrets
 import glob
+import gzip
+import hashlib
 import hmac
 import json
 import mimetypes
 import os
 import re
+import secrets
 import socket
 import sys
 import threading
@@ -847,10 +848,31 @@ class Handler(BaseHTTPRequestHandler):
         if self.server.verbose:
             sys.stderr.write(f"{self.address_string()} - {fmt % args}\n")
 
+    def _compress(self, body, mime):
+        """gzip a response when it is worth it and the client asked.
+
+        The library listing is close to a megabyte of titles and authors, which
+        compresses about six times over. Uncompressed that is the whole of a
+        slow first load through a tunnel. Never applied to audio or images:
+        they are already compressed and would only cost CPU.
+        """
+        if len(body) < 1024:
+            return body, None
+        if "gzip" not in (self.headers.get("Accept-Encoding") or "").lower():
+            return body, None
+        if not (mime.startswith("text/") or "json" in mime or "javascript" in mime
+                or "xml" in mime or mime == "audio/x-mpegurl"):
+            return body, None
+        return gzip.compress(body, 6), "gzip"
+
     def _send_json(self, payload, status=HTTPStatus.OK):
         body = json.dumps(payload).encode("utf-8")
+        body, encoding = self._compress(body, "application/json")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        if encoding:
+            self.send_header("Content-Encoding", encoding)
+            self.send_header("Vary", "Accept-Encoding")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
@@ -2343,8 +2365,27 @@ class Handler(BaseHTTPRequestHandler):
         if not os.path.abspath(path).startswith(WEB_DIR) or not os.path.isfile(path):
             return self._error(HTTPStatus.NOT_FOUND, "not found")
         mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
-        if mime.startswith("text/") or mime in ("application/javascript", "application/json"):
+        compressible = (mime.startswith("text/")
+                        or mime in ("application/javascript", "application/json"))
+        if compressible:
             mime += "; charset=utf-8"
+            try:
+                with open(path, "rb") as fh:
+                    body = fh.read()
+            except OSError:
+                return self._error(HTTPStatus.NOT_FOUND, "not found")
+            body, encoding = self._compress(body, mime)
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", mime)
+            if encoding:
+                self.send_header("Content-Encoding", encoding)
+                self.send_header("Vary", "Accept-Encoding")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(body)
+            return
         self._stream_file(path, mime)
 
 

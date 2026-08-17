@@ -532,9 +532,13 @@ The **Download .m3u** button on each book page gives you that one.
   login. The player warns about this in the settings panel.
 - Audio is streamed as-is — there is no transcoding, so the browser must
   support the format. Opus works everywhere except older Safari.
+- JSON responses and the web assets are gzipped when the client asks. On a
+  3,803-book library the listing goes from 958 KB to 162 KB, which is most of
+  what a first load costs over a remote link. Audio and images are never
+  compressed — they already are, and it would break range requests.
 - The library grid renders every book at once. At 3,803 books that is about
-  three seconds and 26k DOM nodes, with cover images loaded lazily as you
-  scroll. Well past that, it would want windowing.
+  160ms and 26k DOM nodes on a laptop, with cover images loaded lazily as you
+  scroll. Well past that, or on a slow phone, it would want windowing.
 
 ## Files
 
